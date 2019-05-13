@@ -5,7 +5,7 @@ de datos.
 
 create or replace view maslocalesabiertos
 as
-select codcomunidad,count(distinct codpropiedad)
+select codcomunidad as codigo
 from horariosapertura
 where to_char(horaapertura,'HH24:mi') > '16:30'
 or to_char(horacierre,'HH24:mi') between '17:00' and '23:55'
@@ -16,6 +16,20 @@ having count(codpropiedad) = (select max(count(codpropiedad))
                               or to_char(horacierre,'HH24:mi') between '17:00' and '23:55'
                               group by codcomunidad);
 
+insert into historialcargos (nombrecargo,codcomunidad,dni,fechainicio) VALUES ('Presidente',(select codigo 
+                                                                                             from maslocalesabiertos),(select dni
+                                                                                                                       from propietarios
+                                                                                                                       where dni = (select dnipropietario
+                                                                                                                                    from propiedades
+                                                                                                                                    where codcomunidad = (select codigo
+                                                                                                                                                          from maslocalesabiertos)
+                                                                                                                                    having sum(porcentajeparticipacion) = (select max(sum(porcentajeparticipacion))
+                                                                                                                                                                           from propiedades
+                                                                                                                                                                           where codcomunidad = (select codigo
+                                                                                                                                                                                                 from maslocalesabiertos)
+                                                                                                                                                                           group by dnipropietario)
+                                                                                                                                 group by dnipropietario)),(select sysdate
+                                                                                                                                                            from dual));
 
 
 2. El administrador más veterano, esto es, el que lleva más tiempo colegiado, ha
@@ -89,6 +103,18 @@ empresa va a iniciar un procedimiento judicial contra aquellos propietarios que 
 más de tres recibos sin pagar y además tienen inquilinos en alguna de sus
 propiedades. Obtén un listado con los nombres de los morosos y la fecha del recibo
 más antiguo que está pendiente de pago.
+
+create or replace view comunidadmasantigua
+as
+select codcomunidad
+from contratosdemandato
+where fechainicio = (select min(fechainicio)
+                     from contratosdemandato);
+
+select nombre||' '||apellidos,fecha
+from propietarios p,reciboscuotas r
+where p.dni=r.dni
+and 
 
 
 
