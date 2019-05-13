@@ -1,0 +1,217 @@
+1. La comunidad con más locales que están abiertos por la tarde ha nombrado hoy
+presidente al propietario que posee un mayor porcentaje total de participación entre
+todas sus propiedades en dicha comunidad. Inserta el registro apropiado en la base
+de datos.
+
+create or replace view maslocalesabiertos
+as
+select codcomunidad,count(distinct codpropiedad)
+from horariosapertura
+where to_char(horaapertura,'HH24:mi') > '16:30'
+or to_char(horacierre,'HH24:mi') between '17:00' and '23:55'
+group by codcomunidad
+having count(codpropiedad) = (select max(count(codpropiedad))
+                              from horariosapertura
+                              where to_char(horaapertura,'HH24:mi') > '16:30'
+                              or to_char(horacierre,'HH24:mi') between '17:00' and '23:55'
+                              group by codcomunidad);
+
+
+
+2. El administrador más veterano, esto es, el que lleva más tiempo colegiado, ha
+decidido subir un 10% sus honorarios anuales pero solo a aquellas comunidades que
+tienen tanto viviendas como oficinas como locales comerciales y además tienen más
+de 4 propietarios diferentes. Actualiza la información en la base de datos.
+create or replace view ComunidadesViviendas
+as
+select distinct codcomunidad
+from propiedades
+where codpropiedad in (select codpropiedad
+                       from viviendas);
+
+create or replace view ComunidadesOficinas
+as
+select distinct codcomunidad
+from propiedades
+where codpropiedad in (select codpropiedad
+                       from oficinas);
+
+create or replace view ComunidadesLocales
+as
+select distinct codcomunidad
+from propiedades
+where codpropiedad in (select codpropiedad
+                       from locales);
+
+update contratosdemandato
+set honorariosanuales = honorariosanuales + honorariosanuales * 0.1
+where numcolegiado = (select min(numcolegiado)
+                      from administradores)
+and codcomunidad in (select codcomunidad
+                     from comunidades
+		     where codcomunidad in (select codcomunidad
+                                            from ComunidadesViviendas
+                                            intersect
+                                            select codcomunidad
+                                            from ComunidadesOficinas
+                                            intersect
+                                            select codcomunidad
+                                            from ComunidadesLocales))
+and fechainicio < sysdate
+and fechafinal > sysdate;
+3. Muestra para cada propietario de locales comerciales el importe total que adeuda a su
+comunidad, incluyendo a aquéllos que están al corriente de pago actualmente.
+
+select r.DNI,p.nombre,p.apellidos,sum(r.importe) as importe_adeudado
+from propietarios p,reciboscuotas r
+where p.dni=r.dni
+and p.DNI in (select DNIpropietario
+              from propiedades
+              where codpropiedad in (select codpropiedad
+                                     from locales))
+and r.pagado='No'
+and r.fecha <= sysdate
+group by r.DNI,p.nombre,p.apellidos
+union
+select r.DNI,p.nombre,p.apellidos,0
+from propietarios p,reciboscuotas r
+where p.dni=r.dni
+and p.DNI in (select DNIpropietario
+              from propiedades
+              where codpropiedad in (select codpropiedad
+                                     from locales))
+and r.pagado='Si'
+and r.fecha <= sysdate
+group by r.DNI,p.nombre,p.apellidos;
+
+4. La comunidad que lleva más tiempo trabajando con algún administrador de nuestra
+empresa va a iniciar un procedimiento judicial contra aquellos propietarios que tienen
+más de tres recibos sin pagar y además tienen inquilinos en alguna de sus
+propiedades. Obtén un listado con los nombres de los morosos y la fecha del recibo
+más antiguo que está pendiente de pago.
+
+
+
+5. Muestra los propietarios que han ocupado en los últimos tres años tanto el cargo de
+Presidente como el de Vicepresidente como el de Vocal en alguna comunidad con
+más de 5 propiedades.
+
+create or replace view presidentes
+as
+select dni
+from historialcargos
+where nombrecargo='Presidente'
+and codcomunidad in (select codcomunidad
+                     from propiedades
+                     having count(codpropiedad) > 5
+                     group by codcomunidad)
+and to_char(sysdate,'YYYY')-to_char(fechainicio,'YYYY')<='3';
+
+create or replace view vicepresidentes
+as
+select dni
+from historialcargos
+where nombrecargo='Vicepresidente'
+and codcomunidad in (select codcomunidad
+                     from propiedades
+                     having count(codpropiedad) > 5
+                     group by codcomunidad)
+and to_char(sysdate,'YYYY')-to_char(fechainicio,'YYYY')<='3';
+
+create or replace view vocales
+as
+select dni
+from historialcargos
+where nombrecargo='Vocal'
+and codcomunidad in (select codcomunidad
+                     from propiedades
+                     having count(codpropiedad) > 5
+                     group by codcomunidad)
+and to_char(sysdate,'YYYY')-to_char(fechainicio,'YYYY')<='3';
+
+select dni
+from historialcargos
+where dni in (select *
+              from presidentes)
+and dni in (select *
+            from vicepresidentes)
+and dni in (select *
+            from vocales);
+
+6. Muestra el porcentaje de inquilinos sobre el número total de propiedades que tiene
+cada comunidad, incluyendo a las que no tengan ninguno.
+
+
+
+7. Muestra el número de comunidades a cargo de cada administrador actualmente y las
+ganancias totales que le generan al año.
+
+select a.DNI,a.nombre,count(c.codcontrato) as nºcomunidades,sum(c.honorariosanuales) as GananciasAnuales
+from administradores a,contratosdemandato c
+where a.numcolegiado=c.numcolegiado
+and fechainicio < sysdate
+and fechafinal > sysdate
+group by a.DNI,a.nombre;
+
+8. Muestra el nombre del propietario que mantiene más horas abierto su local en su
+comunidad.
+create or replace view MaxHorasLocal
+as
+select codcomunidad,codpropiedad,sum(to_char(horacierre,'HH24mi')-to_char(horaapertura,'HH24mi')) as NumHoras
+from horariosapertura
+group by codcomunidad,codpropiedad;
+
+select nombre||' '||apellidos
+from propietarios
+where dni in (select dnipropietario
+              from propiedades
+              where codpropiedad in (select codpropiedad
+                                     from locales
+                                     where (codcomunidad,codpropiedad) in (select codcomunidad,codpropiedad
+                                                                           from horariosapertura
+                                                                           having sum(to_char(horacierre,'HH24mi')-to_char(horaapertura,'HH24mi')) in (select max(NumHoras)
+                                                                                                                                                       from MaxHorasLocal
+                                                                                                                                                       group by codcomunidad)
+                                                                           group by codcomunidad,codpropiedad)));
+
+9. Muestra los nombres de los propietarios de viviendas que no tienen inquilinos ni han
+formado parte del equipo directivo de ninguna comunidad en los últimos dos años.
+
+select nombre||' '||apellidos
+from propietarios
+where dni in (select dnipropietario
+              from propiedades
+              where codpropiedad not in (select distinct codpropiedad
+                                         from inquilinos)
+              and codpropiedad in (select codpropiedad
+                                   from viviendas))
+and dni not in (select dni
+                from historialcargos
+                where months_between(sysdate,fechafin)<24);
+
+10. Crea una vista con el nombre de cada administrador, la comunidad con más
+propiedades que gestiona y el número de recibos impagados que tiene la misma.
+create or replace view Morosos
+as
+select a.nombre||' '||a.apellidos,c.codcomunidad,count(r.numrecibo)
+from administradores a,comunidades c,reciboscuotas r,contratosdemandato c1
+where a.numcolegiado = c1.numcolegiado
+and r.codcomunidad = c.codcomunidad 
+and c.codcomunidad = (select codcomunidad
+                      from comunidades
+                      where codcomunidad = (select codcomunidad
+                                            from propiedades
+                                            having count(distinct codpropiedad) = (select max(count(distinct codpropiedad))
+                                                                                   from propiedades
+                                                                                   group by codcomunidad)
+                                            group by codcomunidad))
+and r.codcomunidad = (select codcomunidad
+                      from comunidades
+                      where codcomunidad = (select codcomunidad
+                                            from propiedades
+                                            having count(distinct codpropiedad) = (select max(count(distinct codpropiedad))
+                                                                                   from propiedades
+                                                                                   group by codcomunidad)
+                                            group by codcomunidad))
+and r.pagado = 'No'
+group by a.nombre,a.apellidos,c.codcomunidad;

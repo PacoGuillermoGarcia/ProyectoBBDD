@@ -1,0 +1,3 @@
+Posibles supuestos para el proyecto de base de datos:(Administracion de fincas)
+-El administrador de fincas puede contratar un seguro para la comunidad del que se guarda un codigo, fecha inicio, fecha fin, importe anual y una descripcion.
+-Los empleados pueden ser o empleados activos o empleados que estan de baja laboral y guardar informacion sobre las bajas y los partes de lesiones de los empleados que estan de baja

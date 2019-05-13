@@ -1,0 +1,1008 @@
+===============================================================================================================================================================================================
+||                                                                                             ORACLES                                                                                       ||
+===============================================================================================================================================================================================
+
+
+Restricciones a incluir:
+
+1. Todas las claves primarias, ajenas y candidatas de todas las tablas.
+2. El código de un contrato de mandato está compuesto de dos letras y cuatro números.
+3. Los cargos de una comunidad siempre se renuevan durante los cuarenta primeros días de un año.
+4. El porcentaje de participación de una propiedad se almacena con dos decimales.
+5. Los apellidos de un propietario se almacenan con la primera letra de cada palabra en mayúsculas.
+6. Los locales no pueden estar abiertos de 23:00 a 06:00.
+7. El DNI de un inquilino puede tener uno de los siguientes formatos: 8 números y una letra o bien una letra, siete dígitos y otra letra (en este caso, la primera letra solo podrá ser una K, L, M, X, Y ó Z) (Decreto 338/1990).
+8. La población de una comunidad contendrá entre paréntesis el nombre de una de las siguientes provincias: Sevilla, Cádiz, Huelva o Córdoba. 
+9. El código de una propiedad estará compuesto exclusivamente por números.
+10. El código de una comunidad tendrá al menos cuatro caracteres de longitud, siendo éstos letras mayúsculas. 
+
+Creacion de tablas:
+
+CREATE TABLE Administradores
+(
+NumColegiado  VARCHAR2(5),
+DNI           VARCHAR2(9) UNIQUE,
+Nombre        VARCHAR2(15),
+Apellidos     VARCHAR2(30),
+constraint pk_admins PRIMARY KEY(NumColegiado),
+constraint dniadmin_ok CHECK(regexp_like(DNI,'^[0-9]{8}[A-Z]{1}$') or regexp_like(DNI,'^[KLMXYZ]{1}[0-9]{7}[A-Z]{1}$'))
+);
+
+CREATE TABLE Comunidades
+(
+CodComunidad  VARCHAR2(10),
+Nombre        VARCHAR2(30),
+Calle         VARCHAR2(50),
+Poblacion     VARCHAR2(30),
+CodigoPostal  VARCHAR2(10),
+constraint pk_comunidades PRIMARY KEY(CodComunidad),
+constraint cod_ok CHECK(regexp_like(CodComunidad,'^[A-Z]{4,}$')),
+constraint poblacion_ok CHECK(Poblacion like '%(Sevilla)' or Poblacion like '%(Cadiz)' or Poblacion like '%(Huelva)' or Poblacion like '%(Cordoba)')
+);
+
+CREATE TABLE ContratosdeMandato
+(
+CodContrato        VARCHAR2(6),
+NumColegiado       VARCHAR2(5),
+FechaInicio        DATE,
+FechaFinal         DATE,
+HonorariosAnuales  NUMBER(5),
+CodComunidad       VARCHAR2(10),
+constraint pk_contratos PRIMARY KEY(CodContrato),
+constraint fk_admins FOREIGN KEY(NumColegiado) REFERENCES Administradores(NumColegiado),
+constraint fk_comunidades FOREIGN KEY(CodComunidad) REFERENCES Comunidades(CodComunidad),
+constraint cod_correcto CHECK(regexp_like(CodContrato,'^[a-zA-Z]{2}[0-9]{4}$'))
+);
+
+CREATE TABLE Propietarios
+(
+DNI           VARCHAR2(9),
+Nombre        VARCHAR2(15),
+Apellidos     VARCHAR2(30),
+Direccion     VARCHAR2(50),
+Localidad     VARCHAR2(20),
+Provincia     VARCHAR2(20),
+TlfContacto   VARCHAR2(9),
+constraint pk_propietarios PRIMARY KEY(DNI),
+constraint apellido_ok CHECK (Apellidos=INITCAP(Apellidos)),
+constraint dnipro_ok CHECK(regexp_like(DNI,'^[0-9]{8}[A-Z]{1}$') or regexp_like(DNI,'^[KLMXYZ]{1}[0-9]{7}[A-Z]{1}$'))
+);
+
+CREATE TABLE RecibosCuotas
+(
+NumRecibo    VARCHAR2(5),
+CodComunidad VARCHAR2(10),
+DNI          VARCHAR2(9),
+Fecha        DATE,
+Importe      NUMBER(3),
+Pagado       VARCHAR2(2),
+constraint pk_recibos PRIMARY KEY(NumRecibo,CodComunidad),
+constraint fk_comunidad FOREIGN KEY(CodComunidad) REFERENCES Comunidades(CodComunidad),
+constraint fk_propietario FOREIGN KEY(DNI) REFERENCES Propietarios(DNI)
+);
+
+CREATE TABLE HistorialCargos
+(
+NombreCargo  VARCHAR2(15),
+CodComunidad VARCHAR2(10),
+DNI          VARCHAR2(9),
+FechaInicio  DATE,
+FechaFin     DATE,
+constraint pk_historial PRIMARY KEY(NombreCargo,CodComunidad,DNI,FechaInicio),
+constraint fk_comunidad2 FOREIGN KEY(CodComunidad) REFERENCES Comunidades(CodComunidad),
+constraint fk_propietario2 FOREIGN KEY(DNI) REFERENCES Propietarios(DNI),
+constraint renovacion_ok CHECK(to_char(FechaInicio,'MM/DD') between '01/01' and '02/11')
+);
+
+CREATE TABLE Propiedades
+(
+CodComunidad            VARCHAR2(10),
+CodPropiedad            VARCHAR2(5),
+DNIPropietario          VARCHAR2(9),
+Portal                  VARCHAR2(3),
+Planta                  VARCHAR2(2),
+Letra                   VARCHAR2(1),
+PorcentajeParticipacion NUMBER(5,2),
+constraint pk_propiedades PRIMARY KEY(CodComunidad,CodPropiedad),
+constraint fk_comunidad3 FOREIGN KEY(CodComunidad) REFERENCES Comunidades(CodComunidad),
+constraint fk_propietario3 FOREIGN KEY(DNIPropietario) REFERENCES Propietarios(DNI),
+constraint codprop_ok CHECK(regexp_like(CodPropiedad,'^[0-9]{1,}$'))
+);
+
+CREATE TABLE Inquilinos
+(
+DNI              VARCHAR2(9),
+CodPropiedad     VARCHAR2(5),
+CodComunidad     VARCHAR2(10),
+Nombre           VARCHAR2(30),
+Apellidos        VARCHAR2(30),
+TelefonoContacto VARCHAR2(9),
+constraint pk_inquillinos PRIMARY KEY(DNI),
+constraint fk_propiedades FOREIGN KEY(CodPropiedad,CodComunidad) REFERENCES Propiedades(CodPropiedad,CodComunidad),
+constraint dniInquilino_ok CHECK(regexp_like(DNI,'^[0-9]{8}[A-Z]{1}$') or regexp_like(DNI,'^[KLMXYZ]{1}[0-9]{7}[A-Z]{1}$'))
+);
+
+CREATE TABLE Viviendas
+(
+CodPropiedad    VARCHAR2(5),
+CodComunidad    VARCHAR2(10),
+NumHabitaciones VARCHAR2(2),
+constraint pk_viviendas PRIMARY KEY(CodPropiedad,CodComunidad),
+constraint fk_propiedades2 FOREIGN KEY(CodPropiedad,CodComunidad) REFERENCES Propiedades(CodPropiedad,CodComunidad)
+);
+
+CREATE TABLE Oficinas
+(
+CodPropiedad  VARCHAR2(5),
+CodComunidad  VARCHAR2(10),
+Actividad     VARCHAR2(30),
+constraint pk_oficinas PRIMARY KEY(CodPropiedad,CodComunidad),
+constraint fk_propiedades3 FOREIGN KEY(CodPropiedad,CodComunidad) REFERENCES Propiedades(CodPropiedad,CodComunidad)
+);
+
+CREATE TABLE Locales
+(
+CodPropiedad VARCHAR2(5),
+CodComunidad VARCHAR2(10),
+constraint pk_locales PRIMARY KEY(CodPropiedad,CodComunidad),
+constraint fk_propiedades4 FOREIGN KEY(CodPropiedad,CodComunidad) REFERENCES Propiedades(CodPropiedad,CodComunidad)
+);
+
+CREATE TABLE HorariosApertura
+(
+CodPropiedad VARCHAR2(5),
+CodComunidad VARCHAR2(10),
+DiaSemana    VARCHAR2(10),
+HoraApertura DATE,
+HoraCierre   DATE,
+constraint pk_horarios PRIMARY KEY(CodPropiedad,CodComunidad,DiaSemana,HoraApertura),
+constraint fk_locales FOREIGN KEY(CodPropiedad,CodComunidad) REFERENCES Locales(CodPropiedad,CodComunidad),
+constraint apertura_ok CHECK(to_char(HoraApertura,'HH24:MI') between '06:00' and '23:00'),
+constraint cierre_ok CHECK(to_char(HoraCierre,'HH24:MI') between '06:00' and '23:00')
+);
+
+INSERCIÓN DE DATOS:
+
+//insertar en la tabla Administradores
+insert into Administradores VALUES ('258','10159928T','Manuel','Heras Aguayo');
+insert into Administradores VALUES ('676','79464604H','Jose Maria','Moreno Gomez');
+insert into Administradores VALUES ('811','82692471L','Florencio','Sanz Jimenez');
+
+//insertar en la tabla Comunidades
+insert into Comunidades (CodComunidad,Nombre,Calle,Poblacion,CodigoPostal) VALUES ('AEIKGS','Pilar 12','Virgen del Pilar','Dos Hermanas(Sevilla)','41701');
+insert into Comunidades (CodComunidad,Nombre,Calle,Poblacion,CodigoPostal) VALUES ('FBOPF','Abad 65','San Antonio Abad','Cadiz(Cadiz)','11005');
+insert into Comunidades (CodComunidad,Nombre,Calle,Poblacion,CodigoPostal) VALUES ('MVLGQ','Honduras 121','Av de Honduras','Huelva(Huelva)','21007');
+insert into Comunidades (CodComunidad,Nombre,Calle,Poblacion,CodigoPostal) VALUES ('PPIRSAS','Cañada 33','Cañada','Baena(Cordoba)','14850');
+
+//insertar en la tabla ContratosdeMandato
+insert into ContratosdeMandato (CodContrato,NumColegiado,FechaInicio,FechaFinal,HonorariosAnuales,CodComunidad) VALUES ('FF2034','258',To_Date('14/4/2015','DD/MM/YYYY'),To_Date('20/10/2017','DD/MM/YYYY'),4500,'AEIKGS');
+insert into ContratosdeMandato (CodContrato,NumColegiado,FechaInicio,FechaFinal,HonorariosAnuales,CodComunidad) VALUES ('HE0060','811',To_Date('21/10/2017','DD/MM/YYYY'),To_Date('24/04/2019','DD/MM/YYYY'),4300,'AEIKGS');
+insert into ContratosdeMandato (CodContrato,NumColegiado,FechaInicio,FechaFinal,HonorariosAnuales,CodComunidad) VALUES ('DC2003','676',To_Date('03/01/2015','DD/MM/YYYY'),To_Date('26/09/2018','DD/MM/YYYY'),5000,'FBOPF');
+insert into ContratosdeMandato (CodContrato,NumColegiado,FechaInicio,FechaFinal,HonorariosAnuales,CodComunidad) VALUES ('BV6093','258',To_Date('10/05/2016','DD/MM/YYYY'),To_Date('30/06/2019','DD/MM/YYYY'),6230,'MVLGQ');
+insert into ContratosdeMandato (CodContrato,NumColegiado,FechaInicio,FechaFinal,HonorariosAnuales,CodComunidad) VALUES ('MR8769','676',To_Date('12/03/2014','DD/MM/YYYY'),To_Date('07/11/2020','DD/MM/YYYY'),3600,'PPIRSAS');
+insert into ContratosdeMandato (CodContrato,NumColegiado,FechaInicio,FechaFinal,HonorariosAnuales,CodComunidad) VALUES ('YW5692','258',To_Date('27/09/2018','DD/MM/YYYY'),To_Date('16/12/2021','DD/MM/YYYY'),4250,'FBOPF');
+
+//Insertar en la tabla Propietarios
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('14760712W','Francisco','Guillermo Garcia','Virgen del Pilar nº12 1ºC','Dos Hermanas','Sevilla','643823923');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('04689310R','Juan','Arroyo Bautista','Real Utrera nº33','Dos Hermanas','Sevilla','955678593');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('27875223M','Maria Jesus','Vazquez Lopez','San Antonio Abad nº65 2ºC','Cadiz','Cadiz','968543245');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('88966894L','Manuel','Trujillo Garcia','Crespo nº2','Baena','Cordoba','654389210');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('52171942F','Irene','Falcon Sanchez','Av de Blas Infante','Utrera','Sevilla','692384576');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('92618233Q','Pilar','Dominguez Palma','Romera 7','Sevilla','Sevilla','625435687');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('59256194Y','Alejandro','Jurado Garcia','Bailen 76','Ayamonte','Huelva','646262159');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('19082304D','Luis','Ruiz Rodriguez','Santiago Apostol 24','Huelva','Huelva','695165674');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('67689125X','Laura','Aguilera Rojas','Plaza Houston 11','Huelva','Huelva','693242534');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('46833263L','Miguel','Sanz Gonzalez','San Antonio Abad nº65 1ºA','Cadiz','Cadiz','654918577');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('89240769X','Manuel','Lopez Perez','Av de Honduras nº121 3ºD','Huelva','Huelva','618856187');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('62710901K','Maria del Mar','Suarez Alonso','Av de Honduras nº121 3ºA','Huelva','Huelva','619738480');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('77106149Y','Alfonso','Gil Muñoz','Cañada nº33 1ºA','Baena','Cordoba','693080893');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('82367006G','Lorenzo','Castillo Lozano','Cañada nº33 1ºB','Baena','Cordoba','688302749');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('86474416M','Jorge','Molina Cruz','Cañada nº33 3ºD','Baena','Cordoba','633182286');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('48689689T','Alejandro','Ramirez Delgado','Virgen del Pilar nº12 1ºA','Dos hermanas','Sevilla','604660664');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('43239227D','Juan Jose','Ortiz Prieto','Virgen del Pilar nº12 2ºA','Dos hermanas','Sevilla','604109571');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('97529532X','Angel','Santos Iglesias','Virgen del Pilar nº12 2ºD','Dos Hermanas','Sevilla','628881233');
+
+//Insertar en la tabla RecibosCuotas
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('2093','AEIKGS','14760712W',To_Date('01/02/2016','DD/MM/YYYY'),30,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('3200','AEIKGS','04689310R',To_Date('10/06/2017','DD/MM/YYYY'),30,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('0123','FBOPF','27875223M',To_Date('30/01/2015','DD/MM/YYYY'),33,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('3506','AEIKGS','14760712W',To_Date('28/11/2018','DD/MM/YYYY'),30,'No');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('4004','AEIKGS','48689689T',To_Date('15/03/2016','DD/MM/YYYY'),30,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('0392','FBOPF','46833263L',To_Date('23/04/2016','DD/MM/YYYY'),33,'No');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('0499','FBOPF','92618233Q',To_Date('05/07/2016','DD/MM/YYYY'),33,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('0854','FBOPF','52171942F',To_Date('11/09/2017','DD/MM/YYYY'),33,'No');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('2003','MVLGQ','59256194Y',To_Date('03/12/2018','DD/MM/YYYY'),45,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('2201','MVLGQ','19082304D',To_Date('18/05/2018','DD/MM/YYYY'),45,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('3023','MVLGQ','67689125X',To_Date('26/01/2019','DD/MM/YYYY'),45,'No');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('3100','MVLGQ','89240769X',To_Date('01/02/2019','DD/MM/YYYY'),45,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('10304','PPIRSAS','86474416M',To_Date('01/09/2018','DD/MM/YYYY'),38,'No');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('10593','PPIRSAS','86474416M',To_Date('05/12/2018','DD/MM/YYYY'),38,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('10432','PPIRSAS','82367006G',To_Date('01/10/2018','DD/MM/YYYY'),38,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('11943','PPIRSAS','77106149Y',To_Date('02/02/2019','DD/MM/YYYY'),38,'No');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('12000','PPIRSAS','43239227D',To_Date('15/03/2019','DD/MM/YYYY'),38,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('4638','AEIKGS','97529532X',To_Date('25/06/2018','DD/MM/YYYY'),30,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('1049','FBOPF','59256194Y',To_Date('01/12/2017','DD/MM/YYYY'),33,'No');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('3200','MVLGQ','62710901K',To_Date('01/03/2019','DD/MM/YYYY'),45,'No');
+
+//Insertar en la tabla HistorialCargos
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','AEIKGS','04689310R',To_Date('01/02/2015','DD/MM/YYYY'),To_Date('01/01/2016','DD/MM/YYYY'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','AEIKGS','48689689T',To_Date('02/01/2016','DD/MM/YYYY'),To_Date('20/01/2018','DD/MM/YYYY'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Vicepresidente','AEIKGS','14760712W',To_Date('02/02/2015','DD/MM/YYYY'),To_Date('01/01/2017','DD/MM/YYYY'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Vicepresidente','AEIKGS','97529532X',To_Date('02/01/2017','DD/MM/YYYY'),To_Date('01/01/2018','DD/MM/YYYY'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','FBOPF','27875223M',To_Date('15/01/2014','DD/MM/YYYY'),To_Date('20/01/2017','DD/MM/YYYY'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','FBOPF','46833263L',To_Date('24/01/2017','DD/MM/YYYY'),To_Date('10/01/2018','DD/MM/YYYY'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Vicepresidente','FBOPF','46833263L',To_Date('16/01/2014','DD/MM/YYYY'),To_Date('30/04/2017','DD/MM/YYYY'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','MVLGQ','89240769X',To_Date('05/02/2013','DD/MM/YYYY'),To_Date('28/01/2018','DD/MM/YYYY'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Vicepresidente','MVLGQ','62710901K',To_Date('06/02/2014','DD/MM/YYYY'),To_Date('03/09/2016','DD/MM/YYYY'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','PPIRSAS','82367006G',To_Date('10/02/2015','DD/MM/YYYY'),To_Date('08/01/2016','DD/MM/YYYY'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','PPIRSAS','77106149Y',To_Date('09/01/2016','DD/MM/YYYY'),To_Date('27/01/2017','DD/MM/YYYY'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','PPIRSAS','86474416M',To_Date('28/01/2017','DD/MM/YYYY'),To_Date('31/12/2018','DD/MM/YYYY'));
+
+//Insertar en Propiedades
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('AEIKGS','22','14760712W','12','1','C',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('AEIKGS','20','14760712W','12','1','B',45);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('AEIKGS','21','48689689T','12','1','A',65);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('AEIKGS','30','04689310R','12','0','B',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('AEIKGS','33','97529532X','12','2','D',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('FBOPF','100','46833263L','65','1','A',83);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('FBOPF','115','27875223M','65','2','C',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('FBOPF','103','43239227D','65','0','A',90);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('FBOPF','102','92618233Q','65','1','C',30);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('FBOPF','114','04689310R','65','0','B',43);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('MVLGQ','50','62710901K','121','3','A',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('MVLGQ','53','89240769X','121','3','D',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('MVLGQ','46','59256194Y','121','2','A',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('MVLGQ','48','19082304D','121','2','C',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('MVLGQ','57','67689125X','121','4','D',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('PPIRSAS','1200','77106149Y','33','1','A',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('PPIRSAS','1201','82367006G','33','1','B',90);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('PPIRSAS','1206','86474416M','33','2','D',78);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('PPIRSAS','1210','92618233Q','33','4','D',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('PPIRSAS','1208','52171942F','33','0','A',68);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('PPIRSAS','1203','77106149Y','33','1','C',100);
+
+//Insertar en Inquilinos
+insert into Inquilinos (DNI,CodPropiedad,CodComunidad,Nombre,Apellidos,TelefonoContacto) VALUES ('48689689T','20','AEIKGS','Alejandro','Ramirez Delgado','604660664');
+insert into Inquilinos (DNI,CodPropiedad,CodComunidad,Nombre,Apellidos,TelefonoContacto) VALUES ('14760712W','22','AEIKGS','Francisco','Guillermo Garcia','643823923');
+insert into Inquilinos (DNI,CodPropiedad,CodComunidad,Nombre,Apellidos,TelefonoContacto) VALUES ('02434395Y','103','FBOPF','Pablo','Alanis Sandoval','675248922');
+insert into Inquilinos (DNI,CodPropiedad,CodComunidad,Nombre,Apellidos,TelefonoContacto) VALUES ('45127287E','57','MVLGQ','Ismael','Martin Parra','615228750');
+insert into Inquilinos (DNI,CodPropiedad,CodComunidad,Nombre,Apellidos,TelefonoContacto) VALUES ('00234805K','48','MVLGQ','Bruno','Alonso Cruz','669580174');
+insert into Inquilinos (DNI,CodPropiedad,CodComunidad,Nombre,Apellidos,TelefonoContacto) VALUES ('91295660N','1206','PPIRSAS','David','Ibañez Fernandez','616426446');
+
+
+//Insertar en Viviendas
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('22','AEIKGS','3');
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('20','AEIKGS','2');
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('100','FBOPF','3');
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('115','FBOPF','4');
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('50','MVLGQ','2');
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('48','MVLGQ','1');
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('1200','PPIRSAS','3');
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('1206','PPIRSAS','3');
+
+//Insertar en Oficinas
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('33','AEIKGS','Clinica Dental');
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('102','FBOPF','Abogacia');
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('46','MVLGQ','Notaria');
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('57','MVLGQ','Psicologia');
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('53','MVLGQ','Abogacia');
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('1210','PPIRSAS','Clinica Veterinaria');
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('1206','PPIRSAS','Inmobiliaria');
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('1203','PPIRSAS','Notaria');
+
+//Insertar en Locales
+insert into Locales (CodPropiedad,CodComunidad) VALUES ('30','AEIKGS');
+insert into Locales (CodPropiedad,CodComunidad) VALUES ('103','FBOPF');
+insert into Locales (CodPropiedad,CodComunidad) VALUES ('114','FBOPF');
+insert into Locales (CodPropiedad,CodComunidad) VALUES ('1208','PPIRSAS');
+
+//Insertar en HorariosApertura
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Lunes',to_date('09:30','HH24:MI'),to_date('14:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Lunes',to_date('17:30','HH24:MI'),to_date('20:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Martes',to_date('09:30','HH24:MI'),to_date('14:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Martes',to_date('17:30','HH24:MI'),to_date('20:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Miercoles',to_date('09:30','HH24:MI'),to_date('14:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Miercoles',to_date('17:30','HH24:MI'),to_date('20:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Jueves',to_date('09:30','HH24:MI'),to_date('14:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Jueves',to_date('17:30','HH24:MI'),to_date('20:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Viernes',to_date('09:30','HH24:MI'),to_date('14:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Viernes',to_date('17:30','HH24:MI'),to_date('20:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Sabado',to_date('09:00','HH24:MI'),to_date('14:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Lunes',to_date('08:00','HH24:MI'),to_date('13:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Lunes',to_date('17:00','HH24:MI'),to_date('20:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Martes',to_date('08:00','HH24:MI'),to_date('13:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Martes',to_date('17:00','HH24:MI'),to_date('20:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Miercoles',to_date('08:00','HH24:MI'),to_date('13:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Miercoles',to_date('17:00','HH24:MI'),to_date('20:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Jueves',to_date('08:00','HH24:MI'),to_date('13:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Jueves',to_date('17:00','HH24:MI'),to_date('20:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Viernes',to_date('08:00','HH24:MI'),to_date('13:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Viernes',to_date('17:00','HH24:MI'),to_date('20:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('114','FBOPF','Lunes',to_date('10:00','HH24:MI'),to_date('21:30','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('114','FBOPF','Martes',to_date('10:00','HH24:MI'),to_date('21:30','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('114','FBOPF','Miercoles',to_date('10:00','HH24:MI'),to_date('21:30','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('114','FBOPF','Jueves',to_date('10:00','HH24:MI'),to_date('21:30','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('114','FBOPF','Viernes',to_date('10:00','HH24:MI'),to_date('21:30','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('114','FBOPF','Sabado',to_date('10:00','HH24:MI'),to_date('15:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Lunes',To_date('08:00','HH24:MI'),To_date('14:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Lunes',To_date('17:30','HH24:MI'),To_date('22:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Martes',To_date('08:00','HH24:MI'),To_date('14:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Martes',To_date('17:30','HH24:MI'),To_date('22:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Miercoles',To_date('08:00','HH24:MI'),To_date('14:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Miercoles',To_date('17:30','HH24:MI'),To_date('22:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Jueves',To_date('08:00','HH24:MI'),To_date('14:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Jueves',To_date('17:30','HH24:MI'),To_date('22:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Viernes',To_date('08:00','HH24:MI'),To_date('14:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Viernes',To_date('17:30','HH24:MI'),To_date('22:00','HH24:MI'));
+
+===============================================================================================================================================================================================
+||                                                                                        POSTGRES                                                                                           ||
+===============================================================================================================================================================================================
+
+Restricciones a incluir:
+
+1. Todas las claves primarias, ajenas y candidatas de todas las tablas.
+2. El código de un contrato de mandato está compuesto de dos letras y cuatro números.
+3. Los cargos de una comunidad siempre se renuevan durante los cuarenta primeros días de un año.
+4. El porcentaje de participación de una propiedad se almacena con dos decimales.
+5. Los apellidos de un propietario se almacenan con la primera letra de cada palabra en mayúsculas.
+6. Los locales no pueden estar abiertos de 23:00 a 06:00.
+7. El DNI de un inquilino puede tener uno de los siguientes formatos: 8 números y una letra o bien una letra, siete dígitos y otra letra (en este caso, la primera letra solo podrá ser una K, L, M, X, Y ó Z) (Decreto 338/1990).
+8. La población de una comunidad contendrá entre paréntesis el nombre de una de las siguientes provincias: Sevilla, Cádiz, Huelva o Córdoba. 
+9. El código de una propiedad estará compuesto exclusivamente por números.
+10. El código de una comunidad tendrá al menos cuatro caracteres de longitud, siendo éstos letras mayúsculas. 
+
+Creacion de tablas:
+
+CREATE TABLE Administradores
+(
+NumColegiado  VARCHAR(5),
+DNI           VARCHAR(9) UNIQUE,
+Nombre        VARCHAR(15),
+Apellidos     VARCHAR(30),
+constraint pk_admins PRIMARY KEY(NumColegiado),
+constraint dniadmin_ok CHECK((DNI ~ '^[0-9]{8}[A-Z]{1}$') or (DNI ~ '^[KLMXYZ]{1}[0-9]{7}[A-Z]{1}$'))
+);
+
+CREATE TABLE Comunidades
+(
+CodComunidad  VARCHAR(10),
+Nombre        VARCHAR(30),
+Calle         VARCHAR(50),
+Poblacion     VARCHAR(30),
+CodigoPostal  VARCHAR(10),
+constraint pk_comunidades PRIMARY KEY(CodComunidad),
+constraint cod_ok CHECK(CodComunidad ~ '^[A-Z]{4,}$'),
+constraint poblacion_ok CHECK(Poblacion like '%(Sevilla)' or Poblacion like '%(Cadiz)' or Poblacion like '%(Huelva)' or Poblacion like '%(Cordoba)')
+);
+
+CREATE TABLE ContratosdeMandato
+(
+CodContrato        VARCHAR(6),
+NumColegiado       VARCHAR(5),
+FechaInicio        TIMESTAMP,
+FechaFinal         TIMESTAMP,
+HonorariosAnuales  NUMERIC(5),
+CodComunidad       VARCHAR(10),
+constraint pk_contratos PRIMARY KEY(CodContrato),
+constraint fk_admins FOREIGN KEY(NumColegiado) REFERENCES Administradores(NumColegiado),
+constraint fk_comunidades FOREIGN KEY(CodComunidad) REFERENCES Comunidades(CodComunidad),
+constraint cod_correcto CHECK(CodContrato ~ '^[a-zA-Z]{2}[0-9]{4}$')
+);
+
+CREATE TABLE Propietarios
+(
+DNI           VARCHAR(9),
+Nombre        VARCHAR(15),
+Apellidos     VARCHAR(30),
+Direccion     VARCHAR(50),
+Localidad     VARCHAR(20),
+Provincia     VARCHAR(20),
+TlfContacto   VARCHAR(9),
+constraint pk_propietarios PRIMARY KEY(DNI),
+constraint apellido_ok CHECK (Apellidos=INITCAP(Apellidos)),
+constraint dnipro_ok CHECK((DNI ~ '^[0-9]{8}[A-Z]{1}$') or (DNI ~ '^[KLMXYZ]{1}[0-9]{7}[A-Z]{1}$'))
+);
+
+CREATE TABLE RecibosCuotas
+(
+NumRecibo    VARCHAR(5),
+CodComunidad VARCHAR(10),
+DNI          VARCHAR(9),
+Fecha        TIMESTAMP,
+Importe      NUMERIC(3),
+Pagado       VARCHAR(2),
+constraint pk_recibos PRIMARY KEY(NumRecibo,CodComunidad),
+constraint fk_comunidad FOREIGN KEY(CodComunidad) REFERENCES Comunidades(CodComunidad),
+constraint fk_propietario FOREIGN KEY(DNI) REFERENCES Propietarios(DNI)
+);
+
+CREATE TABLE HistorialCargos
+(
+NombreCargo  VARCHAR(15),
+CodComunidad VARCHAR(10),
+DNI          VARCHAR(9),
+FechaInicio  TIMESTAMP,
+FechaFin     TIMESTAMP,
+constraint pk_historial PRIMARY KEY(NombreCargo,CodComunidad,DNI,FechaInicio),
+constraint fk_comunidad2 FOREIGN KEY(CodComunidad) REFERENCES Comunidades(CodComunidad),
+constraint fk_propietario2 FOREIGN KEY(DNI) REFERENCES Propietarios(DNI),
+constraint renovacion_ok CHECK(to_char(FechaInicio,'MM/DD') between '01/01' and '02/11')
+);
+
+CREATE TABLE Propiedades
+(
+CodComunidad            VARCHAR(10),
+CodPropiedad            VARCHAR(5),
+DNIPropietario          VARCHAR(9),
+Portal                  VARCHAR(3),
+Planta                  VARCHAR(2),
+Letra                   VARCHAR(1),
+PorcentajeParticipacion NUMERIC(5,2),
+constraint pk_propiedades PRIMARY KEY(CodComunidad,CodPropiedad),
+constraint fk_comunidad3 FOREIGN KEY(CodComunidad) REFERENCES Comunidades(CodComunidad),
+constraint fk_propietario3 FOREIGN KEY(DNIPropietario) REFERENCES Propietarios(DNI),
+constraint codprop_ok CHECK(CodPropiedad ~ '^[0-9]{1,}$')
+);
+
+CREATE TABLE Inquilinos
+(
+DNI              VARCHAR(9),
+CodPropiedad     VARCHAR(5),
+CodComunidad     VARCHAR(10),
+Nombre           VARCHAR(30),
+Apellidos        VARCHAR(30),
+TelefonoContacto VARCHAR(9),
+constraint pk_inquillinos PRIMARY KEY(DNI),
+constraint fk_propiedades FOREIGN KEY(CodPropiedad,CodComunidad) REFERENCES Propiedades(CodPropiedad,CodComunidad),
+constraint dniInquilino_ok CHECK((DNI ~ '^[0-9]{8}[A-Z]{1}$') or (DNI ~ '^[KLMXYZ]{1}[0-9]{7}[A-Z]{1}$'))
+);
+
+CREATE TABLE Viviendas
+(
+CodPropiedad    VARCHAR(5),
+CodComunidad    VARCHAR(10),
+NumHabitaciones VARCHAR(2),
+constraint pk_viviendas PRIMARY KEY(CodPropiedad,CodComunidad),
+constraint fk_propiedades2 FOREIGN KEY(CodPropiedad,CodComunidad) REFERENCES Propiedades(CodPropiedad,CodComunidad)
+);
+
+CREATE TABLE Oficinas
+(
+CodPropiedad  VARCHAR(5),
+CodComunidad  VARCHAR(10),
+Actividad     VARCHAR(30),
+constraint pk_oficinas PRIMARY KEY(CodPropiedad,CodComunidad),
+constraint fk_propiedades3 FOREIGN KEY(CodPropiedad,CodComunidad) REFERENCES Propiedades(CodPropiedad,CodComunidad)
+);
+
+CREATE TABLE Locales
+(
+CodPropiedad VARCHAR(5),
+CodComunidad VARCHAR(10),
+constraint pk_locales PRIMARY KEY(CodPropiedad,CodComunidad),
+constraint fk_propiedades4 FOREIGN KEY(CodPropiedad,CodComunidad) REFERENCES Propiedades(CodPropiedad,CodComunidad)
+);
+
+CREATE TABLE HorariosApertura
+(
+CodPropiedad VARCHAR(5),
+CodComunidad VARCHAR(10),
+DiaSemana    VARCHAR(10),
+HoraApertura TIMESTAMP,
+HoraCierre   TIMESTAMP,
+constraint pk_horarios PRIMARY KEY(CodPropiedad,CodComunidad,DiaSemana,HoraApertura),
+constraint fk_locales FOREIGN KEY(CodPropiedad,CodComunidad) REFERENCES Locales(CodPropiedad,CodComunidad),
+constraint apertura_ok CHECK(to_char(HoraApertura,'HH24:MI') between '06:00' and '23:00'),
+constraint cierre_ok CHECK(to_char(HoraCierre,'HH24:MI') between '06:00' and '23:00')
+);
+
+INSERCIÓN DE DATOS:
+
+//insertar en la tabla Administradores
+insert into Administradores VALUES ('258','10159928T','Manuel','Heras Aguayo');
+insert into Administradores VALUES ('676','79464604H','Jose Maria','Moreno Gomez');
+insert into Administradores VALUES ('811','82692471L','Florencio','Sanz Jimenez');
+
+//insertar en la tabla Comunidades
+insert into Comunidades (CodComunidad,Nombre,Calle,Poblacion,CodigoPostal) VALUES ('AEIKGS','Pilar 12','Virgen del Pilar','Dos Hermanas(Sevilla)','41701');
+insert into Comunidades (CodComunidad,Nombre,Calle,Poblacion,CodigoPostal) VALUES ('FBOPF','Abad 65','San Antonio Abad','Cadiz(Cadiz)','11005');
+insert into Comunidades (CodComunidad,Nombre,Calle,Poblacion,CodigoPostal) VALUES ('MVLGQ','Honduras 121','Av de Honduras','Huelva(Huelva)','21007');
+insert into Comunidades (CodComunidad,Nombre,Calle,Poblacion,CodigoPostal) VALUES ('PPIRSAS','Cañada 33','Cañada','Baena(Cordoba)','14850');
+
+//insertar en la tabla ContratosdeMandato
+insert into ContratosdeMandato (CodContrato,NumColegiado,FechaInicio,FechaFinal,HonorariosAnuales,CodComunidad) VALUES ('FF2034','258',To_Timestamp('14/4/2015','DD/MM/YYYY'),To_Timestamp('20/10/2017','DD/MM/YYYY'),4500,'AEIKGS');
+insert into ContratosdeMandato (CodContrato,NumColegiado,FechaInicio,FechaFinal,HonorariosAnuales,CodComunidad) VALUES ('HE0060','811',To_Timestamp('21/10/2017','DD/MM/YYYY'),To_Timestamp('24/04/2019','DD/MM/YYYY'),4300,'AEIKGS');
+insert into ContratosdeMandato (CodContrato,NumColegiado,FechaInicio,FechaFinal,HonorariosAnuales,CodComunidad) VALUES ('DC2003','676',To_Timestamp('03/01/2015','DD/MM/YYYY'),To_Timestamp('26/09/2018','DD/MM/YYYY'),5000,'FBOPF');
+insert into ContratosdeMandato (CodContrato,NumColegiado,FechaInicio,FechaFinal,HonorariosAnuales,CodComunidad) VALUES ('BV6093','258',To_Timestamp('10/05/2016','DD/MM/YYYY'),To_Timestamp('30/06/2019','DD/MM/YYYY'),6230,'MVLGQ');
+insert into ContratosdeMandato (CodContrato,NumColegiado,FechaInicio,FechaFinal,HonorariosAnuales,CodComunidad) VALUES ('MR8769','676',To_Timestamp('12/03/2014','DD/MM/YYYY'),To_Timestamp('07/11/2020','DD/MM/YYYY'),3600,'PPIRSAS');
+insert into ContratosdeMandato (CodContrato,NumColegiado,FechaInicio,FechaFinal,HonorariosAnuales,CodComunidad) VALUES ('YW5692','258',To_Timestamp('27/09/2018','DD/MM/YYYY'),To_Timestamp('16/12/2021','DD/MM/YYYY'),4250,'FBOPF');
+
+//Insertar en la tabla Propietarios
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('14760712W','Francisco','Guillermo Garcia','Virgen del Pilar nº12 1ºC','Dos Hermanas','Sevilla','643823923');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('04689310R','Juan','Arroyo Bautista','Real Utrera nº33','Dos Hermanas','Sevilla','955678593');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('27875223M','Maria Jesus','Vazquez Lopez','San Antonio Abad nº65 2ºC','Cadiz','Cadiz','968543245');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('88966894L','Manuel','Trujillo Garcia','Crespo nº2','Baena','Cordoba','654389210');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('52171942F','Irene','Falcon Sanchez','Av de Blas Infante','Utrera','Sevilla','692384576');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('92618233Q','Pilar','Dominguez Palma','Romera 7','Sevilla','Sevilla','625435687');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('59256194Y','Alejandro','Jurado Garcia','Bailen 76','Ayamonte','Huelva','646262159');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('19082304D','Luis','Ruiz Rodriguez','Santiago Apostol 24','Huelva','Huelva','695165674');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('67689125X','Laura','Aguilera Rojas','Plaza Houston 11','Huelva','Huelva','693242534');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('46833263L','Miguel','Sanz Gonzalez','San Antonio Abad nº65 1ºA','Cadiz','Cadiz','654918577');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('89240769X','Manuel','Lopez Perez','Av de Honduras nº121 3ºD','Huelva','Huelva','618856187');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('62710901K','Maria del Mar','Suarez Alonso','Av de Honduras nº121 3ºA','Huelva','Huelva','619738480');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('77106149Y','Alfonso','Gil Muñoz','Cañada nº33 1ºA','Baena','Cordoba','693080893');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('82367006G','Lorenzo','Castillo Lozano','Cañada nº33 1ºB','Baena','Cordoba','688302749');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('86474416M','Jorge','Molina Cruz','Cañada nº33 3ºD','Baena','Cordoba','633182286');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('48689689T','Alejandro','Ramirez Delgado','Virgen del Pilar nº12 1ºA','Dos hermanas','Sevilla','604660664');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('43239227D','Juan Jose','Ortiz Prieto','Virgen del Pilar nº12 2ºA','Dos hermanas','Sevilla','604109571');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('97529532X','Angel','Santos Iglesias','Virgen del Pilar nº12 2ºD','Dos Hermanas','Sevilla','628881233');
+
+//Insertar en la tabla RecibosCuotas
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('2093','AEIKGS','14760712W',To_Timestamp('01/02/2016','DD/MM/YYYY'),30,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('3200','AEIKGS','04689310R',To_Timestamp('10/06/2017','DD/MM/YYYY'),30,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('0123','FBOPF','27875223M',To_Timestamp('30/01/2015','DD/MM/YYYY'),33,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('3506','AEIKGS','14760712W',To_Timestamp('28/11/2018','DD/MM/YYYY'),30,'No');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('4004','AEIKGS','48689689T',To_Timestamp('15/03/2016','DD/MM/YYYY'),30,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('0392','FBOPF','46833263L',To_Timestamp('23/04/2016','DD/MM/YYYY'),33,'No');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('0499','FBOPF','92618233Q',To_Timestamp('05/07/2016','DD/MM/YYYY'),33,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('0854','FBOPF','52171942F',To_Timestamp('11/09/2017','DD/MM/YYYY'),33,'No');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('2003','MVLGQ','59256194Y',To_Timestamp('03/12/2018','DD/MM/YYYY'),45,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('2201','MVLGQ','19082304D',To_Timestamp('18/05/2018','DD/MM/YYYY'),45,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('3023','MVLGQ','67689125X',To_Timestamp('26/01/2019','DD/MM/YYYY'),45,'No');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('3100','MVLGQ','89240769X',To_Timestamp('01/02/2019','DD/MM/YYYY'),45,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('10304','PPIRSAS','86474416M',To_Timestamp('01/09/2018','DD/MM/YYYY'),38,'No');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('10593','PPIRSAS','86474416M',To_Timestamp('05/12/2018','DD/MM/YYYY'),38,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('10432','PPIRSAS','82367006G',To_Timestamp('01/10/2018','DD/MM/YYYY'),38,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('11943','PPIRSAS','77106149Y',To_Timestamp('02/02/2019','DD/MM/YYYY'),38,'No');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('12000','PPIRSAS','43239227D',To_Timestamp('15/03/2019','DD/MM/YYYY'),38,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('4638','AEIKGS','97529532X',To_Timestamp('25/06/2018','DD/MM/YYYY'),30,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('1049','FBOPF','59256194Y',To_Timestamp('01/12/2017','DD/MM/YYYY'),33,'No');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('3200','MVLGQ','62710901K',To_Timestamp('01/03/2019','DD/MM/YYYY'),45,'No');
+
+//Insertar en la tabla HistorialCargos
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','AEIKGS','04689310R',To_Timestamp('01/02/2015','DD/MM/YYYY'),To_Timestamp('01/01/2016','DD/MM/YYYY'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','AEIKGS','48689689T',To_Timestamp('02/01/2016','DD/MM/YYYY'),To_Timestamp('20/01/2018','DD/MM/YYYY'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Vicepresidente','AEIKGS','14760712W',To_Timestamp('02/02/2015','DD/MM/YYYY'),To_Timestamp('01/01/2017','DD/MM/YYYY'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Vicepresidente','AEIKGS','97529532X',To_Timestamp('02/01/2017','DD/MM/YYYY'),To_Timestamp('01/01/2018','DD/MM/YYYY'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','FBOPF','27875223M',To_Timestamp('15/01/2014','DD/MM/YYYY'),To_Timestamp('20/01/2017','DD/MM/YYYY'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','FBOPF','46833263L',To_Timestamp('24/01/2017','DD/MM/YYYY'),To_Timestamp('10/01/2018','DD/MM/YYYY'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Vicepresidente','FBOPF','46833263L',To_Timestamp('16/01/2014','DD/MM/YYYY'),To_Timestamp('30/04/2017','DD/MM/YYYY'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','MVLGQ','89240769X',To_Timestamp('05/02/2013','DD/MM/YYYY'),To_Timestamp('28/01/2018','DD/MM/YYYY'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Vicepresidente','MVLGQ','62710901K',To_Timestamp('06/02/2014','DD/MM/YYYY'),To_Timestamp('03/09/2016','DD/MM/YYYY'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','PPIRSAS','82367006G',To_Timestamp('10/02/2015','DD/MM/YYYY'),To_Timestamp('08/01/2016','DD/MM/YYYY'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','PPIRSAS','77106149Y',To_Timestamp('09/01/2016','DD/MM/YYYY'),To_Timestamp('27/01/2017','DD/MM/YYYY'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','PPIRSAS','86474416M',To_Timestamp('28/01/2017','DD/MM/YYYY'),To_Timestamp('31/12/2018','DD/MM/YYYY'));
+
+//Insertar en Propiedades
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('AEIKGS','22','14760712W','12','1','C',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('AEIKGS','20','14760712W','12','1','B',45);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('AEIKGS','21','48689689T','12','1','A',65);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('AEIKGS','30','04689310R','12','0','B',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('AEIKGS','33','97529532X','12','2','D',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('FBOPF','100','46833263L','65','1','A',83);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('FBOPF','115','27875223M','65','2','C',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('FBOPF','103','43239227D','65','0','A',90);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('FBOPF','102','92618233Q','65','1','C',30);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('FBOPF','114','04689310R','65','0','B',43);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('MVLGQ','50','62710901K','121','3','A',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('MVLGQ','53','89240769X','121','3','D',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('MVLGQ','46','59256194Y','121','2','A',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('MVLGQ','48','19082304D','121','2','C',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('MVLGQ','57','67689125X','121','4','D',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('PPIRSAS','1200','77106149Y','33','1','A',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('PPIRSAS','1201','82367006G','33','1','B',90);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('PPIRSAS','1206','86474416M','33','2','D',78);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('PPIRSAS','1210','92618233Q','33','4','D',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('PPIRSAS','1208','52171942F','33','0','A',68);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('PPIRSAS','1203','77106149Y','33','1','C',100);
+
+//Insertar en Inquilinos
+insert into Inquilinos (DNI,CodPropiedad,CodComunidad,Nombre,Apellidos,TelefonoContacto) VALUES ('48689689T','20','AEIKGS','Alejandro','Ramirez Delgado','604660664');
+insert into Inquilinos (DNI,CodPropiedad,CodComunidad,Nombre,Apellidos,TelefonoContacto) VALUES ('14760712W','22','AEIKGS','Francisco','Guillermo Garcia','643823923');
+insert into Inquilinos (DNI,CodPropiedad,CodComunidad,Nombre,Apellidos,TelefonoContacto) VALUES ('02434395Y','103','FBOPF','Pablo','Alanis Sandoval','675248922');
+insert into Inquilinos (DNI,CodPropiedad,CodComunidad,Nombre,Apellidos,TelefonoContacto) VALUES ('45127287E','57','MVLGQ','Ismael','Martin Parra','615228750');
+insert into Inquilinos (DNI,CodPropiedad,CodComunidad,Nombre,Apellidos,TelefonoContacto) VALUES ('00234805K','48','MVLGQ','Bruno','Alonso Cruz','669580174');
+insert into Inquilinos (DNI,CodPropiedad,CodComunidad,Nombre,Apellidos,TelefonoContacto) VALUES ('91295660N','1206','PPIRSAS','David','Ibañez Fernandez','616426446');
+
+
+//Insertar en Viviendas
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('22','AEIKGS','3');
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('20','AEIKGS','2');
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('100','FBOPF','3');
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('115','FBOPF','4');
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('50','MVLGQ','2');
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('48','MVLGQ','1');
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('1200','PPIRSAS','3');
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('1206','PPIRSAS','3');
+
+//Insertar en Oficinas
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('33','AEIKGS','Clinica Dental');
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('102','FBOPF','Abogacia');
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('46','MVLGQ','Notaria');
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('57','MVLGQ','Psicologia');
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('53','MVLGQ','Abogacia');
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('1210','PPIRSAS','Clinica Veterinaria');
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('1206','PPIRSAS','Inmobiliaria');
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('1203','PPIRSAS','Notaria');
+
+//Insertar en Locales
+insert into Locales (CodPropiedad,CodComunidad) VALUES ('30','AEIKGS');
+insert into Locales (CodPropiedad,CodComunidad) VALUES ('103','FBOPF');
+insert into Locales (CodPropiedad,CodComunidad) VALUES ('114','FBOPF');
+insert into Locales (CodPropiedad,CodComunidad) VALUES ('1208','PPIRSAS');
+
+//Insertar en HorariosApertura
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Lunes',To_Timestamp('09:30','HH24:MI'),To_Timestamp('14:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Lunes',To_Timestamp('17:30','HH24:MI'),To_Timestamp('20:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Martes',To_Timestamp('09:30','HH24:MI'),To_Timestamp('14:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Martes',To_Timestamp('17:30','HH24:MI'),To_Timestamp('20:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Miercoles',To_Timestamp('09:30','HH24:MI'),To_Timestamp('14:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Miercoles',To_Timestamp('17:30','HH24:MI'),To_Timestamp('20:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Jueves',To_Timestamp('09:30','HH24:MI'),To_Timestamp('14:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Jueves',To_Timestamp('17:30','HH24:MI'),To_Timestamp('20:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Viernes',To_Timestamp('09:30','HH24:MI'),To_Timestamp('14:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Viernes',To_Timestamp('17:30','HH24:MI'),To_Timestamp('20:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Sabado',To_Timestamp('09:00','HH24:MI'),To_Timestamp('14:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Lunes',To_Timestamp('08:00','HH24:MI'),To_Timestamp('13:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Lunes',To_Timestamp('17:00','HH24:MI'),To_Timestamp('20:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Martes',To_Timestamp('08:00','HH24:MI'),To_Timestamp('13:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Martes',To_Timestamp('17:00','HH24:MI'),To_Timestamp('20:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Miercoles',To_Timestamp('08:00','HH24:MI'),To_Timestamp('13:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Miercoles',To_Timestamp('17:00','HH24:MI'),To_Timestamp('20:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Jueves',To_Timestamp('08:00','HH24:MI'),To_Timestamp('13:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Jueves',To_Timestamp('17:00','HH24:MI'),To_Timestamp('20:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Viernes',To_Timestamp('08:00','HH24:MI'),To_Timestamp('13:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Viernes',To_Timestamp('17:00','HH24:MI'),To_Timestamp('20:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('114','FBOPF','Lunes',To_Timestamp('10:00','HH24:MI'),To_Timestamp('21:30','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('114','FBOPF','Martes',To_Timestamp('10:00','HH24:MI'),To_Timestamp('21:30','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('114','FBOPF','Miercoles',To_Timestamp('10:00','HH24:MI'),To_Timestamp('21:30','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('114','FBOPF','Jueves',To_Timestamp('10:00','HH24:MI'),To_Timestamp('21:30','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('114','FBOPF','Viernes',To_Timestamp('10:00','HH24:MI'),To_Timestamp('21:30','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('114','FBOPF','Sabado',To_Timestamp('10:00','HH24:MI'),To_Timestamp('15:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Lunes',To_Timestamp('08:00','HH24:MI'),To_Timestamp('14:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Lunes',To_Timestamp('17:30','HH24:MI'),To_Timestamp('22:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Martes',To_Timestamp('08:00','HH24:MI'),To_Timestamp('14:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Martes',To_Timestamp('17:30','HH24:MI'),To_Timestamp('22:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Miercoles',To_Timestamp('08:00','HH24:MI'),To_Timestamp('14:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Miercoles',To_Timestamp('17:30','HH24:MI'),To_Timestamp('22:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Jueves',To_Timestamp('08:00','HH24:MI'),To_Timestamp('14:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Jueves',To_Timestamp('17:30','HH24:MI'),To_Timestamp('22:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Viernes',To_Timestamp('08:00','HH24:MI'),To_Timestamp('14:00','HH24:MI'));
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Viernes',To_Timestamp('17:30','HH24:MI'),To_Timestamp('22:00','HH24:MI'));
+
+===============================================================================================================================================================================================
+||                                                                                         MARIADB                                                                                           ||
+===============================================================================================================================================================================================
+Restricciones a incluir:
+
+1. Todas las claves primarias, ajenas y candidatas de todas las tablas.
+2. El código de un contrato de mandato está compuesto de dos letras y cuatro números.
+3. Los cargos de una comunidad siempre se renuevan durante los cuarenta primeros días de un año.
+4. El porcentaje de participación de una propiedad se almacena con dos decimales.
+5. Los apellidos de un propietario se almacenan con la primera letra de cada palabra en mayúsculas.
+6. Los locales no pueden estar abiertos de 23:00 a 06:00.
+7. El DNI de un inquilino puede tener uno de los siguientes formatos: 8 números y una letra o bien una letra, siete dígitos y otra letra (en este caso, la primera letra solo podrá ser una K, L, M, X, Y ó Z) (Decreto 338/1990).
+8. La población de una comunidad contendrá entre paréntesis el nombre de una de las siguientes provincias: Sevilla, Cádiz, Huelva o Córdoba. 
+9. El código de una propiedad estará compuesto exclusivamente por números.
+10. El código de una comunidad tendrá al menos cuatro caracteres de longitud, siendo éstos letras mayúsculas. 
+
+Creacion de tablas:
+
+CREATE TABLE Administradores
+(
+NumColegiado  VARCHAR(5),
+DNI           VARCHAR(9) UNIQUE,
+Nombre        VARCHAR(15),
+Apellidos     VARCHAR(30),
+constraint pk_admins PRIMARY KEY(NumColegiado),
+constraint dniadmin_ok CHECK((DNI RLIKE '^[0-9]{8}[A-Z]{1}$') or (DNI RLIKE '^[KLMXYZ]{1}[0-9]{7}[A-Z]{1}$'))
+);
+
+CREATE TABLE Comunidades
+(
+CodComunidad  VARCHAR(10),
+Nombre        VARCHAR(30),
+Calle         VARCHAR(50),
+Poblacion     VARCHAR(30),
+CodigoPostal  VARCHAR(10),
+constraint pk_comunidades PRIMARY KEY(CodComunidad),
+constraint cod_ok CHECK(CodComunidad RLIKE '^[A-Z]{4,}$'),
+constraint poblacion_ok CHECK(Poblacion like '%(Sevilla)' or Poblacion like '%(Cadiz)' or Poblacion like '%(Huelva)' or Poblacion like '%(Cordoba)')
+);
+
+CREATE TABLE ContratosdeMandato
+(
+CodContrato        VARCHAR(6),
+NumColegiado       VARCHAR(5),
+FechaInicio        TIMESTAMP,
+FechaFinal         TIMESTAMP,
+HonorariosAnuales  NUMERIC(5),
+CodComunidad       VARCHAR(10),
+constraint pk_contratos PRIMARY KEY(CodContrato),
+constraint fk_admins FOREIGN KEY(NumColegiado) REFERENCES Administradores(NumColegiado),
+constraint fk_comunidades FOREIGN KEY(CodComunidad) REFERENCES Comunidades(CodComunidad),
+constraint cod_correcto CHECK(CodContrato RLIKE '^[a-zA-Z]{2}[0-9]{4}$')
+);
+
+CREATE TABLE Propietarios
+(
+DNI           VARCHAR(9),
+Nombre        VARCHAR(15),
+Apellidos     VARCHAR(30),
+Direccion     VARCHAR(50),
+Localidad     VARCHAR(20),
+Provincia     VARCHAR(20),
+TlfContacto   VARCHAR(9),
+constraint pk_propietarios PRIMARY KEY(DNI),
+constraint apellido_ok CHECK (Apellidos RLIKE '^([A-Z][a-z]+\ ?)+$'),
+constraint dnipro_ok CHECK((DNI RLIKE '^[0-9]{8}[A-Z]{1}$') or (DNI RLIKE '^[KLMXYZ]{1}[0-9]{7}[A-Z]{1}$'))
+);
+
+CREATE TABLE RecibosCuotas
+(
+NumRecibo    VARCHAR(5),
+CodComunidad VARCHAR(10),
+DNI          VARCHAR(9),
+Fecha        TIMESTAMP,
+Importe      NUMERIC(3),
+Pagado       VARCHAR(2),
+constraint pk_recibos PRIMARY KEY(NumRecibo,CodComunidad),
+constraint fk_comunidad FOREIGN KEY(CodComunidad) REFERENCES Comunidades(CodComunidad),
+constraint fk_propietario FOREIGN KEY(DNI) REFERENCES Propietarios(DNI)
+);
+
+CREATE TABLE HistorialCargos
+(
+NombreCargo  VARCHAR(15),
+CodComunidad VARCHAR(10),
+DNI          VARCHAR(9),
+FechaInicio  TIMESTAMP,
+FechaFin     TIMESTAMP,
+constraint pk_historial PRIMARY KEY(NombreCargo,CodComunidad,DNI,FechaInicio),
+constraint fk_comunidad2 FOREIGN KEY(CodComunidad) REFERENCES Comunidades(CodComunidad),
+constraint fk_propietario2 FOREIGN KEY(DNI) REFERENCES Propietarios(DNI),
+constraint renovacion_ok CHECK(concat(extract(MONTH from FechaInicio),extract(DAY from FechaInicio)) < 211)
+);
+
+CREATE TABLE Propiedades
+(
+CodComunidad            VARCHAR(10),
+CodPropiedad            VARCHAR(5),
+DNIPropietario          VARCHAR(9),
+Portal                  VARCHAR(3),
+Planta                  VARCHAR(2),
+Letra                   VARCHAR(1),
+PorcentajeParticipacion NUMERIC(5,2),
+constraint pk_propiedades PRIMARY KEY(CodComunidad,CodPropiedad),
+constraint fk_comunidad3 FOREIGN KEY(CodComunidad) REFERENCES Comunidades(CodComunidad),
+constraint fk_propietario3 FOREIGN KEY(DNIPropietario) REFERENCES Propietarios(DNI),
+constraint codprop_ok CHECK(CodPropiedad RLIKE '^[0-9]{1,}$')
+);
+
+CREATE TABLE Inquilinos
+(
+DNI              VARCHAR(9),
+CodPropiedad     VARCHAR(5),
+CodComunidad     VARCHAR(10),
+Nombre           VARCHAR(30),
+Apellidos        VARCHAR(30),
+TelefonoContacto VARCHAR(9),
+constraint pk_inquilinos PRIMARY KEY(DNI),
+constraint fk_propiedades FOREIGN KEY(CodComunidad,CodPropiedad) REFERENCES Propiedades(CodComunidad,CodPropiedad),
+constraint dniInquilino_ok CHECK((DNI RLIKE '^[0-9]{8}[A-Z]{1}$') or (DNI RLIKE '^[KLMXYZ]{1}[0-9]{7}[A-Z]{1}$'))
+);
+ ###HAY QUE PONER LAS CLAVES AJENAS EN EL MISMO ORDEN QUE ESTAN EN LA TABLA DESDE LA QUE SE PROPAGAN###
+
+CREATE TABLE Viviendas
+(
+CodPropiedad    VARCHAR(5),
+CodComunidad    VARCHAR(10),
+NumHabitaciones VARCHAR(2),
+constraint pk_viviendas PRIMARY KEY(CodComunidad,CodPropiedad),
+constraint fk_propiedades2 FOREIGN KEY(CodComunidad,CodPropiedad) REFERENCES Propiedades(CodComunidad,CodPropiedad)
+);
+
+CREATE TABLE Oficinas
+(
+CodPropiedad  VARCHAR(5),
+CodComunidad  VARCHAR(10),
+Actividad     VARCHAR(30),
+constraint pk_oficinas PRIMARY KEY(CodComunidad,CodPropiedad),
+constraint fk_propiedades3 FOREIGN KEY(CodComunidad,CodPropiedad) REFERENCES Propiedades(CodComunidad,CodPropiedad)
+);
+
+CREATE TABLE Locales
+(
+CodPropiedad VARCHAR(5),
+CodComunidad VARCHAR(10),
+constraint pk_locales PRIMARY KEY(CodComunidad,CodPropiedad),
+constraint fk_propiedades4 FOREIGN KEY(CodComunidad,CodPropiedad) REFERENCES Propiedades(CodComunidad,CodPropiedad)
+);
+
+CREATE TABLE HorariosApertura
+(
+CodPropiedad VARCHAR(5),
+CodComunidad VARCHAR(10),
+DiaSemana    VARCHAR(10),
+HoraApertura TIME,
+HoraCierre   TIME,
+constraint pk_horarios PRIMARY KEY(CodComunidad,CodPropiedad,DiaSemana,HoraApertura),
+constraint fk_locales FOREIGN KEY(CodComunidad,CodPropiedad) REFERENCES Locales(CodComunidad,CodPropiedad),
+constraint apertura_ok CHECK(extract(HOUR_MINUTE from HoraApertura) between 0600 and 2300),
+constraint cierre_ok CHECK(extract(HOUR_MINUTE from HoraCierre) between 0600 and 2300)
+);
+
+INSERCION DE DATOS:
+
+//insertar en la tabla Administradores
+insert into Administradores VALUES ('258','10159928T','Manuel','Heras Aguayo');
+insert into Administradores VALUES ('676','79464604H','Jose Maria','Moreno Gomez');
+insert into Administradores VALUES ('811','82692471L','Florencio','Sanz Jimenez');
+
+//insertar en la tabla Comunidades
+insert into Comunidades (CodComunidad,Nombre,Calle,Poblacion,CodigoPostal) VALUES ('AEIKGS','Pilar 12','Virgen del Pilar','Dos Hermanas(Sevilla)','41701');
+insert into Comunidades (CodComunidad,Nombre,Calle,Poblacion,CodigoPostal) VALUES ('FBOPF','Abad 65','San Antonio Abad','Cadiz(Cadiz)','11005');
+insert into Comunidades (CodComunidad,Nombre,Calle,Poblacion,CodigoPostal) VALUES ('MVLGQ','Honduras 121','Av de Honduras','Huelva(Huelva)','21007');
+insert into Comunidades (CodComunidad,Nombre,Calle,Poblacion,CodigoPostal) VALUES ('PPIRSAS','Cañada 33','Cañada','Baena(Cordoba)','14850');
+
+//insertar en la tabla ContratosdeMandato
+insert into ContratosdeMandato (CodContrato,NumColegiado,FechaInicio,FechaFinal,HonorariosAnuales,CodComunidad) VALUES ('FF2034','258',DATE_FORMAT('2015-4-14','%y-%m-%d'),DATE_FORMAT('2017-10-20','%y-%m-%d'),4500,'AEIKGS');
+insert into ContratosdeMandato (CodContrato,NumColegiado,FechaInicio,FechaFinal,HonorariosAnuales,CodComunidad) VALUES ('HE0060','811',DATE_FORMAT('2017-10-21','%y-%m-%d'),DATE_FORMAT('2019-04-24','%y-%m-%d'),4300,'AEIKGS');
+insert into ContratosdeMandato (CodContrato,NumColegiado,FechaInicio,FechaFinal,HonorariosAnuales,CodComunidad) VALUES ('DC2003','676',DATE_FORMAT('2015-01-03','%y-%m-%d'),DATE_FORMAT('2018-09-26','%y-%m-%d'),5000,'FBOPF');
+insert into ContratosdeMandato (CodContrato,NumColegiado,FechaInicio,FechaFinal,HonorariosAnuales,CodComunidad) VALUES ('BV6093','258',DATE_FORMAT('2016-05-10','%y-%m-%d'),DATE_FORMAT('2019-06-30','%y-%m-%d'),6230,'MVLGQ');
+insert into ContratosdeMandato (CodContrato,NumColegiado,FechaInicio,FechaFinal,HonorariosAnuales,CodComunidad) VALUES ('MR8769','676',DATE_FORMAT('2014-03-12','%y-%m-%d'),DATE_FORMAT('2020-11-07','%y-%m-%d'),3600,'PPIRSAS');
+insert into ContratosdeMandato (CodContrato,NumColegiado,FechaInicio,FechaFinal,HonorariosAnuales,CodComunidad) VALUES ('YW5692','258',DATE_FORMAT('2018-09-27','%y-%m-%d'),DATE_FORMAT('2021-12-16','%y-%m-%d'),4250,'FBOPF');
+
+//Insertar en la tabla Propietarios
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('14760712W','Francisco','Guillermo Garcia','Virgen del Pilar nº12 1ºC','Dos Hermanas','Sevilla','643823923');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('04689310R','Juan','Arroyo Bautista','Real Utrera nº33','Dos Hermanas','Sevilla','955678593');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('27875223M','Maria Jesus','Vazquez Lopez','San Antonio Abad nº65 2ºC','Cadiz','Cadiz','968543245');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('88966894L','Manuel','Trujillo Garcia','Crespo nº2','Baena','Cordoba','654389210');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('52171942F','Irene','Falcon Sanchez','Av de Blas Infante','Utrera','Sevilla','692384576');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('92618233Q','Pilar','Dominguez Palma','Romera 7','Sevilla','Sevilla','625435687');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('59256194Y','Alejandro','Jurado Garcia','Bailen 76','Ayamonte','Huelva','646262159');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('19082304D','Luis','Ruiz Rodriguez','Santiago Apostol 24','Huelva','Huelva','695165674');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('67689125X','Laura','Aguilera Rojas','Plaza Houston 11','Huelva','Huelva','693242534');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('46833263L','Miguel','Sanz Gonzalez','San Antonio Abad nº65 1ºA','Cadiz','Cadiz','654918577');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('89240769X','Manuel','Lopez Perez','Av de Honduras nº121 3ºD','Huelva','Huelva','618856187');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('62710901K','Maria del Mar','Suarez Alonso','Av de Honduras nº121 3ºA','Huelva','Huelva','619738480');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('77106149Y','Alfonso','Gil Munyoz','Cañada nº33 1ºA','Baena','Cordoba','693080893');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('82367006G','Lorenzo','Castillo Lozano','Cañada nº33 1ºB','Baena','Cordoba','688302749');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('86474416M','Jorge','Molina Cruz','Cañada nº33 3ºD','Baena','Cordoba','633182286');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('48689689T','Alejandro','Ramirez Delgado','Virgen del Pilar nº12 1ºA','Dos hermanas','Sevilla','604660664');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('43239227D','Juan Jose','Ortiz Prieto','Virgen del Pilar nº12 2ºA','Dos hermanas','Sevilla','604109571');
+insert into Propietarios (DNI,Nombre,Apellidos,Direccion,Localidad,Provincia,TlfContacto) VALUES ('97529532X','Angel','Santos Iglesias','Virgen del Pilar nº12 2ºD','Dos Hermanas','Sevilla','628881233');
+
+//Insertar en la tabla RecibosCuotas
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('2093','AEIKGS','14760712W',DATE_FORMAT('2016-02-01','%y-%m-%d'),30,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('3200','AEIKGS','04689310R',DATE_FORMAT('2017-06-10','%y-%m-%d'),30,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('0123','FBOPF','27875223M',DATE_FORMAT('2015-01-30','%y-%m-%d'),33,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('3506','AEIKGS','14760712W',DATE_FORMAT('2018-11-28','%y-%m-%d'),30,'No');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('4004','AEIKGS','48689689T',DATE_FORMAT('2016-03-15','%y-%m-%d'),30,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('0392','FBOPF','46833263L',DATE_FORMAT('2016-04-23','%y-%m-%d'),33,'No');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('0499','FBOPF','92618233Q',DATE_FORMAT('2016-07-05','%y-%m-%d'),33,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('0854','FBOPF','52171942F',DATE_FORMAT('2017-09-11','%y-%m-%d'),33,'No');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('2003','MVLGQ','59256194Y',DATE_FORMAT('2018-12-03','%y-%m-%d'),45,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('2201','MVLGQ','19082304D',DATE_FORMAT('2018-05-18','%y-%m-%d'),45,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('3023','MVLGQ','67689125X',DATE_FORMAT('2019-01-26','%y-%m-%d'),45,'No');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('3100','MVLGQ','89240769X',DATE_FORMAT('2019-02-01','%y-%m-%d'),45,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('10304','PPIRSAS','86474416M',DATE_FORMAT('2018-09-01','%y-%m-%d'),38,'No');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('10593','PPIRSAS','86474416M',DATE_FORMAT('2018-12-05','%y-%m-%d'),38,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('10432','PPIRSAS','82367006G',DATE_FORMAT('2018-10-01','%y-%m-%d'),38,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('11943','PPIRSAS','77106149Y',DATE_FORMAT('2019-02-02','%y-%m-%d'),38,'No');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('12000','PPIRSAS','43239227D',DATE_FORMAT('2019-03-15','%y-%m-%d'),38,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('4638','AEIKGS','97529532X',DATE_FORMAT('2018-06-25','%y-%m-%d'),30,'Si');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('1049','FBOPF','59256194Y',DATE_FORMAT('2017-12-01','%y-%m-%d'),33,'No');
+insert into RecibosCuotas (NumRecibo,CodComunidad,DNI,Fecha,Importe,Pagado) VALUES ('3200','MVLGQ','62710901K',DATE_FORMAT('2019-03-01','%y-%m-%d'),45,'No');
+
+//Insertar en la tabla HistorialCargos
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','AEIKGS','04689310R',DATE_FORMAT('2015-02-01','%y-%m-%d'),DATE_FORMAT('2016-01-01','%y-%m-%d'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','AEIKGS','48689689T',DATE_FORMAT('2016-01-02','%y-%m-%d'),DATE_FORMAT('2018-01-20','%y-%m-%d'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Vicepresidente','AEIKGS','14760712W',DATE_FORMAT('2015-02-02','%y-%m-%d'),DATE_FORMAT('2017-01-01','%y-%m-%d'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Vicepresidente','AEIKGS','97529532X',DATE_FORMAT('2017-01-02','%y-%m-%d'),DATE_FORMAT('2018-01-01','%y-%m-%d'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','FBOPF','27875223M',DATE_FORMAT('2014-01-15','%y-%m-%d'),DATE_FORMAT('2017-01-20','%y-%m-%d'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','FBOPF','46833263L',DATE_FORMAT('2017-01-24','%y-%m-%d'),DATE_FORMAT('2018-01-10','%y-%m-%d'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Vicepresidente','FBOPF','46833263L',DATE_FORMAT('2014-01-16','%y-%m-%d'),DATE_FORMAT('2017-04-30','%y-%m-%d'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','MVLGQ','89240769X',DATE_FORMAT('2013-02-05','%y-%m-%d'),DATE_FORMAT('2018-01-28','%y-%m-%d'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Vicepresidente','MVLGQ','62710901K',DATE_FORMAT('2014-02-06','%y-%m-%d'),DATE_FORMAT('2016-09-03','%y-%m-%d'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','PPIRSAS','82367006G',DATE_FORMAT('2015-02-10','%y-%m-%d'),DATE_FORMAT('2016-01-08','%y-%m-%d'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','PPIRSAS','77106149Y',DATE_FORMAT('2016-01-09','%y-%m-%d'),DATE_FORMAT('2017-01-27','%y-%m-%d'));
+insert into HistorialCargos (NombreCargo,CodComunidad,DNI,FechaInicio,FechaFin) VALUES ('Presidente','PPIRSAS','86474416M',DATE_FORMAT('2017-01-28','%y-%m-%d'),DATE_FORMAT('2018-12-31','%y-%m-%d'));
+
+//Insertar en Propiedades
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('AEIKGS','22','14760712W','12','1','C',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('AEIKGS','20','14760712W','12','1','B',45);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('AEIKGS','21','48689689T','12','1','A',65);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('AEIKGS','30','04689310R','12','0','B',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('AEIKGS','33','97529532X','12','2','D',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('FBOPF','100','46833263L','65','1','A',83);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('FBOPF','115','27875223M','65','2','C',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('FBOPF','103','43239227D','65','0','A',90);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('FBOPF','102','92618233Q','65','1','C',30);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('FBOPF','114','04689310R','65','0','B',43);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('MVLGQ','50','62710901K','121','3','A',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('MVLGQ','53','89240769X','121','3','D',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('MVLGQ','46','59256194Y','121','2','A',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('MVLGQ','48','19082304D','121','2','C',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('MVLGQ','57','67689125X','121','4','D',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('PPIRSAS','1200','77106149Y','33','1','A',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('PPIRSAS','1201','82367006G','33','1','B',90);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('PPIRSAS','1206','86474416M','33','2','D',78);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('PPIRSAS','1210','92618233Q','33','4','D',100);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('PPIRSAS','1208','52171942F','33','0','A',68);
+insert into Propiedades (CodComunidad,CodPropiedad,DNIPropietario,Portal,Planta,Letra,PorcentajeParticipacion) VALUES ('PPIRSAS','1203','77106149Y','33','1','C',100);
+
+//Insertar en Inquilinos
+insert into Inquilinos (DNI,CodPropiedad,CodComunidad,Nombre,Apellidos,TelefonoContacto) VALUES ('48689689T','20','AEIKGS','Alejandro','Ramirez Delgado','604660664');
+insert into Inquilinos (DNI,CodPropiedad,CodComunidad,Nombre,Apellidos,TelefonoContacto) VALUES ('14760712W','22','AEIKGS','Francisco','Guillermo Garcia','643823923');
+insert into Inquilinos (DNI,CodPropiedad,CodComunidad,Nombre,Apellidos,TelefonoContacto) VALUES ('02434395Y','103','FBOPF','Pablo','Alanis Sandoval','675248922');
+insert into Inquilinos (DNI,CodPropiedad,CodComunidad,Nombre,Apellidos,TelefonoContacto) VALUES ('45127287E','57','MVLGQ','Ismael','Martin Parra','615228750');
+insert into Inquilinos (DNI,CodPropiedad,CodComunidad,Nombre,Apellidos,TelefonoContacto) VALUES ('00234805K','48','MVLGQ','Bruno','Alonso Cruz','669580174');
+insert into Inquilinos (DNI,CodPropiedad,CodComunidad,Nombre,Apellidos,TelefonoContacto) VALUES ('91295660N','1206','PPIRSAS','David','Ibañez Fernandez','616426446');
+
+
+//Insertar en Viviendas
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('22','AEIKGS','3');
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('20','AEIKGS','2');
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('100','FBOPF','3');
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('115','FBOPF','4');
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('50','MVLGQ','2');
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('48','MVLGQ','1');
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('1200','PPIRSAS','3');
+insert into Viviendas (CodPropiedad,CodComunidad,NumHabitaciones) VALUES ('1206','PPIRSAS','3');
+
+//Insertar en Oficinas
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('33','AEIKGS','Clinica Dental');
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('102','FBOPF','Abogacia');
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('46','MVLGQ','Notaria');
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('57','MVLGQ','Psicologia');
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('53','MVLGQ','Abogacia');
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('1210','PPIRSAS','Clinica Veterinaria');
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('1206','PPIRSAS','Inmobiliaria');
+insert into Oficinas (CodPropiedad,CodComunidad,Actividad) VALUES ('1203','PPIRSAS','Notaria');
+
+//Insertar en Locales
+insert into Locales (CodPropiedad,CodComunidad) VALUES ('30','AEIKGS');
+insert into Locales (CodPropiedad,CodComunidad) VALUES ('103','FBOPF');
+insert into Locales (CodPropiedad,CodComunidad) VALUES ('114','FBOPF');
+insert into Locales (CodPropiedad,CodComunidad) VALUES ('1208','PPIRSAS');
+
+//Insertar en HorariosApertura
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Lunes','09:30','14:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Lunes','17:30','20:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Martes','09:30','14:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Martes','17:30','20:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Miercoles','09:30','14:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Miercoles','17:30','20:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Jueves','09:30','14:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Jueves','17:30','20:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Viernes','09:30','14:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Viernes','17:30','20:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('30','AEIKGS','Sabado','09:00','14:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Lunes','08:00','13:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Lunes','17:00','20:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Martes','08:00','13:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Martes','17:00','20:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Miercoles','08:00','13:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Miercoles','17:00','20:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Jueves','08:00','13:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Jueves','17:00','20:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Viernes','08:00','13:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('103','FBOPF','Viernes','17:00','20:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('114','FBOPF','Lunes','10:00','21:30');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('114','FBOPF','Martes','10:00','21:30');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('114','FBOPF','Miercoles','10:00','21:30');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('114','FBOPF','Jueves','10:00','21:30');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('114','FBOPF','Viernes','10:00','21:30');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('114','FBOPF','Sabado','10:00','15:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Lunes','08:00','14:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Lunes','17:30','22:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Martes','08:00','14:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Martes','17:30','22:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Miercoles','08:00','14:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Miercoles','17:30','22:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Jueves','08:00','14:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Jueves','17:30','22:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Viernes','08:00','14:00');
+insert into HorariosApertura (CodPropiedad,CodComunidad,DiaSemana,HoraApertura,HoraCierre) VALUES ('1208','PPIRSAS','Viernes','17:30','22:00');
