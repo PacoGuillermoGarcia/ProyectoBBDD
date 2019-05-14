@@ -63,7 +63,7 @@ where numcolegiado = (select min(numcolegiado)
                       from administradores)
 and codcomunidad in (select codcomunidad
                      from comunidades
-		     where codcomunidad in (select codcomunidad
+		             where codcomunidad in (select codcomunidad
                                             from ComunidadesViviendas
                                             intersect
                                             select codcomunidad
@@ -111,10 +111,19 @@ from contratosdemandato
 where fechainicio = (select min(fechainicio)
                      from contratosdemandato);
 
-select nombre||' '||apellidos,fecha
+select r.dni,nombre||' '||apellidos,min(fecha)
 from propietarios p,reciboscuotas r
 where p.dni=r.dni
-and 
+and r.pagado = 'No'
+and r.codcomunidad = (select codcomunidad
+                      from comunidadmasantigua)
+and p.dni in (select dnipropietario
+              from propiedades
+              where codpropiedad in (select codpropiedad
+          	                         from inquilinos))
+having count(r.numrecibo) > 3
+group by r.dni,nombre||' '||apellidos;
+
 
 
 
@@ -167,7 +176,21 @@ and dni in (select *
 6. Muestra el porcentaje de inquilinos sobre el número total de propiedades que tiene
 cada comunidad, incluyendo a las que no tengan ninguno.
 
+create or replace view numeroinquilinoscomunidades
+as
+select codcomunidad, count(dni) as numinquilinos
+from inquilinos
+group by codcomunidad;
 
+create or replace view numeropropiedadescomunidades
+as
+select codcomunidad,count(codpropiedad) as numpropiedades
+from propiedades
+group by codcomunidad;
+
+select n2.codcomunidad,round((nvl(numinquilinos,0)/numpropiedades)*100,2)||' %' as porcentajeinquilinos
+from numeroinquilinoscomunidades n1,numeropropiedadescomunidades n2
+where n1.codcomunidad(+)=n2.codcomunidad;
 
 7. Muestra el número de comunidades a cargo de cada administrador actualmente y las
 ganancias totales que le generan al año.
@@ -176,7 +199,7 @@ select a.DNI,a.nombre,count(c.codcontrato) as nºcomunidades,sum(c.honorariosanu
 from administradores a,contratosdemandato c
 where a.numcolegiado=c.numcolegiado
 and fechainicio < sysdate
-and fechafinal > sysdate
+and fechafinal > sysdate//
 group by a.DNI,a.nombre;
 
 8. Muestra el nombre del propietario que mantiene más horas abierto su local en su
