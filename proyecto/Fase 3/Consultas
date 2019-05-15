@@ -459,10 +459,10 @@ select codcomunidad,count(codpropiedad) as numpropiedades
 from propiedades
 group by codcomunidad;
 
-select n2.codcomunidad,div(coalesce(n1.numinquilinos,0),coalesce(n2.numpropiedades,0))*100||' %' as porcentajeinquilinos
+select n2.codcomunidad,coalesce(n1.numinquilinos,0)/coalesce(n2.numpropiedades,0)::float*100::float as porcentajeinquilinos
 from numeroinquilinoscomunidades n1,numeropropiedadescomunidades n2
 left outer join numeroinquilinoscomunidades on n2.codcomunidad=numeroinquilinoscomunidades.codcomunidad
-group by n2.codcomunidad,porcentajeinquilinos;
+;
 
 7. Muestra el número de comunidades a cargo de cada administrador actualmente y las
 ganancias totales que le generan al año.
