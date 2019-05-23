@@ -3,6 +3,44 @@ local nos devuelva un 1 si está abierto o un 0 si está cerrado en el momento d
 contemplar las siguientes excepciones: Comunidad Inexistente, Propiedad Inexistente en esa Comunidad, La
 propiedad no es un local comercial.
 
+create or replace function comprobarabierto(p_codcomunidad comunidades.codcomunidad%type,p_codpropiedad propiedades.codpropiedad%type)
+return NUMBER
+is
+	v_horaapertura horariosapertura.horaapertura%type;
+	v_horacierre horariosapertura.horacierre%type;
+	v_dia horariosapertura.diasemana%type;
+begin
+	select to_char(horaapertura,'HH24:MI'),to_char(horacierre,'HH24:MI'),diasemana into v_horaapertura,v_horacierre,v_dia
+	from horariosapertura
+	where codcomunidad=p_codcomunidad
+	and codpropiedad=p_codpropiedad;
+	case
+		when (to_char(sysdate,'HH24:MI') > v_horaapertura and to_char(sysdate,'HH24:MI') < v_horacierre) and to_char(sysdate,'DAY')=v_dia then
+			return 1;
+		else
+			return 0;
+	end case;
+end comprobarabierto;
+/
+
+create or replace procedure cerradooabierto(p_codcomunidad comunidades.codcomunidad%type,p_codpropiedad propiedades.codpropiedad%type)
+is
+	cursor c_local is
+	select codcomunidad,codpropiedad 
+	from locales;
+	v_indicador NUMBER:=0;
+begin
+	for v_local in c_local loop
+		if (v_local.codcomunidad=p_codcomunidad and v_local.codpropiedad=p_codpropiedad) then
+			v_indicador:=comprobarabierto(p_codcomunidad,p_codpropiedad);
+			dbms_output.put_line(v_indicador);
+		else
+			dbms_output.put_line('No es un local comercial');
+		end if;
+	end loop;
+end cerradooabierto;
+/
+Comprobarexcepcionesej1(p_codcomunidad,p_codpropiedad);
 
 2. Realiza un procedimiento llamado MostrarInformes, que recibirá tres parámetros, siendo el primero de ellos un
 número que indicará el tipo de informe a mostrar. Estos tipos pueden ser los siguientes:
@@ -145,6 +183,18 @@ begin
 end tablapropiedadesvacia;
 /
 
+create or replace procedure Infocomunidad(p_codcomunidad comunidades.codcomunidad%type,p_fecha DATE)
+is
+	nombrecom comunidades.nombre%type;
+	codigopos comunidades.codigopostal%type;
+begin
+	select nombre,codigopostal into nombrecom,codigopos
+	from comunidades
+	where codcomunidad=p_codcomunidad;
+	dbms_output.put_line('Comunidad:'||nombrecom||chr(10)||'Poblacion:'||codigopos||chr(10)||'Fecha:'||p_fecha);
+end Infocomunidad;
+/
+
 create or replace procedure MostrarTipo1(p_codcomunidad comunidades.codcomunidad%type,p_fecha DATE)
 is
 	cursor c_cargo is
@@ -173,21 +223,11 @@ begin
 end MostrarTipo1;
 /
 
-create or replace procedure Infocomunidad(p_codcomunidad comunidades.codcomunidad%type,p_fecha DATE)
-is
-	nombrecom comunidades.nombre%type;
-	codigopos comunidades.codigopostal%type;
-begin
-	select nombre,codigopostal into nombrecom,codigopos
-	from comunidades
-	where codcomunidad=p_codcomunidad;
-	dbms_output.put_line('Comunidad:'||nombrecom||chr(10)||'Poblacion:'||codigopos||chr(10)||'Fecha:'||p_fecha);
-end Infocomunidad;
-/
 
 create or replace procedure MostrarInformes(p_tipo NUMBER,p_codcomunidad comunidades.codcomunidad%type,p_fecha DATE)
 is 
 begin
+	ExcepcionesInformes(p_codcomunidad);
 	if p_tipo=1 then
 		MostrarTipo1(p_codcomunidad,p_fecha);
 	elsif p_tipo=2 then
