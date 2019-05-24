@@ -1,0 +1,31 @@
+select to_char(horaapertura,'HH24MI') 
+from horariosapertura
+where codcomunidad='AEIKGS'
+and codpropiedad='30'
+and lower(diasemana)=lower(to_Char(sysdate,'Day'));
+
+
+
+select *
+from horariosapertura
+where codcomunidad='AEIKGS'
+and codpropiedad='30'
+and to_number(to_char(sysdate,'HH24MI'),'9999') between to_number(to_char(horaapertura,'HH24MI'),'9999') and to_number(to_char(horacierre,'HH24MI'),'9999')
+and lower(to_char(sysdate,'Day'))=lower(diasemana);
+
+
+select to_char(horaapertura,'HH24:MI'),to_char(horacierre,'HH24:MI'),diasemana
+from horariosapertura
+where codcomunidad='AEIKGS'
+and codpropiedad='30'
+and to_char(sysdate,'HH24:MI') between to_char(horaapertura,'HH24:MI') and to_char(horacierre,'HH24:MI')
+and diasemana=to_char(sysdate,'day');
+
+
+select p.nombre||' '||p.apellidos as nombreape,p.tlfcontacto,h.nombrecargo
+from comunidades c,propietarios p,historialcargos h
+where h.codcomunidad=c.codcomunidad
+and p.dni=h.dni
+and '23/05/17' between h.fechainicio and h.fechafin
+and h.codcomunidad='AEIKGS'
+order by h.nombrecargo;

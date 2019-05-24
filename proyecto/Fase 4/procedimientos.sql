@@ -3,44 +3,77 @@ local nos devuelva un 1 si está abierto o un 0 si está cerrado en el momento d
 contemplar las siguientes excepciones: Comunidad Inexistente, Propiedad Inexistente en esa Comunidad, La
 propiedad no es un local comercial.
 
+create or replace procedure comunidadexiste(p_codcomunidad comunidades.codcomunidad%type)
+is
+	v_codcomunidad comunidades.codcomunidad%type;
+begin
+	select codcomunidad into v_codcomunidad
+	from comunidades
+	where codcomunidad=p_codcomunidad;
+exception
+	when NO_DATA_FOUND then
+		raise_application_error(-20002,'No existe esa comunidad');
+end comunidadexiste;
+/	
+	
+create or replace procedure propiedadexisteencomunidad(p_codcomunidad comunidades.codcomunidad%type,p_codpropiedad propiedades.codpropiedad%type)
+is
+	v_propiedad propiedades.codpropiedad%type;
+begin
+	select codpropiedad into v_propiedad
+	from propiedades
+	where codpropiedad=p_codpropiedad
+	and codcomunidad=p_codcomunidad;
+exception	
+	when NO_DATA_FOUND then
+		raise_application_error(-20003,'No existe esa propiedad en la comunidad con codigo'||' '||p_codcomunidad);
+end propiedadexisteencomunidad;
+/
+
+create or replace procedure eslocal(p_codpropiedad propiedades.codpropiedad%type,p_codcomunidad comunidades.codcomunidad%type)
+is
+	v_local propiedades.codpropiedad%type;
+begin
+	select codpropiedad into v_local
+	from locales
+	where codpropiedad=p_codpropiedad
+	and codcomunidad=p_codcomunidad;
+exception
+	when NO_DATA_FOUND then
+		raise_application_error(-20004,'Esa propiedad no es un local');
+end eslocal;
+/
+
+create or replace procedure comprobarexcepcionesEJ1(p_codcomunidad comunidades.codcomunidad%type,p_codpropiedad propiedades.codpropiedad%type)
+is
+begin
+	comunidadexiste(p_codcomunidad);
+	propiedadexisteencomunidad(p_codcomunidad,p_codpropiedad);
+	eslocal(p_codpropiedad,p_codcomunidad);
+end comprobarexcepcionesEJ1;
+/
+
 create or replace function comprobarabierto(p_codcomunidad comunidades.codcomunidad%type,p_codpropiedad propiedades.codpropiedad%type)
 return NUMBER
 is
-	v_horaapertura horariosapertura.horaapertura%type;
-	v_horacierre horariosapertura.horacierre%type;
-	v_dia horariosapertura.diasemana%type;
+	v_num NUMBER:=0;
 begin
-	select to_char(horaapertura,'HH24:MI'),to_char(horacierre,'HH24:MI'),diasemana into v_horaapertura,v_horacierre,v_dia
+	comprobarexcepcionesEJ1(p_codcomunidad,p_codpropiedad);	
+	select count(*) into v_num
 	from horariosapertura
 	where codcomunidad=p_codcomunidad
-	and codpropiedad=p_codpropiedad;
-	case
-		when (to_char(sysdate,'HH24:MI') > v_horaapertura and to_char(sysdate,'HH24:MI') < v_horacierre) and to_char(sysdate,'DAY')=v_dia then
-			return 1;
-		else
-			return 0;
-	end case;
+	and codpropiedad=p_codpropiedad
+	and to_char(sysdate,'HH24MI') > to_char(horaapertura,'HH24MI') 
+	and to_char(sysdate,'HH24MI') < to_char(horacierre,'HH24MI')
+	and lower(ltrim(rtrim(to_char(sysdate,'Day'))))=lower(diasemana);
+	if v_num=1 then
+		return 1;
+	else
+		return 0;
+	end if;
 end comprobarabierto;
 /
 
-create or replace procedure cerradooabierto(p_codcomunidad comunidades.codcomunidad%type,p_codpropiedad propiedades.codpropiedad%type)
-is
-	cursor c_local is
-	select codcomunidad,codpropiedad 
-	from locales;
-	v_indicador NUMBER:=0;
-begin
-	for v_local in c_local loop
-		if (v_local.codcomunidad=p_codcomunidad and v_local.codpropiedad=p_codpropiedad) then
-			v_indicador:=comprobarabierto(p_codcomunidad,p_codpropiedad);
-			dbms_output.put_line(v_indicador);
-		else
-			dbms_output.put_line('No es un local comercial');
-		end if;
-	end loop;
-end cerradooabierto;
-/
-Comprobarexcepcionesej1(p_codcomunidad,p_codpropiedad);
 
 2. Realiza un procedimiento llamado MostrarInformes, que recibirá tres parámetros, siendo el primero de ellos un
 número que indicará el tipo de informe a mostrar. Estos tipos pueden ser los siguientes:
@@ -65,7 +98,7 @@ propietarios que adeudan un mayor importe.
 INFORME DE RECIBOS IMPAGADOS
 Comunidad: NombreComunidad
 PoblaciónComunidad CodPostalComunidad
-Fecha: xx/xx/xx
+Fecha: xx/xx/xx (fecha en la que se ejecuta el programa)
 Propietario 1: D.xxxxxxxxxx xxxxxxxxxx xxxxxxxxxx
 NumRecibo1
 FechaRecibo1 Importe1
@@ -195,6 +228,18 @@ begin
 end Infocomunidad;
 /
 
+create or replace procedure contardirectivos(p_codcomunidad comunidades.codcomunidad%type,p_fecha DATE,p_cont IN OUT NUMBER)
+is
+begin
+	select count(*) into p_cont
+	from historialcargos
+	where codcomunidad=p_codcomunidad
+	and p_fecha > fechainicio
+	and p_fecha < fechafin;
+end contardirectivos;
+/
+	
+
 create or replace procedure MostrarTipo1(p_codcomunidad comunidades.codcomunidad%type,p_fecha DATE)
 is
 	cursor c_cargo is
@@ -205,10 +250,13 @@ is
 	and p_fecha between h.fechainicio and h.fechafin
 	and h.codcomunidad=p_codcomunidad
 	order by h.nombrecargo;
+	
+	v_cont NUMBER:=0;
 begin
 	dbms_output.put_line('INFORME CARGOS');
 	Infocomunidad(p_codcomunidad,p_fecha);
 	for v_prop in c_cargo loop
+		contardirectivos(p_codcomunidad,p_fecha,v_cont);		
 		case v_prop.nombrecargo
 			when 'Presidente' then
 				dbms_output.put_line('PRESIDENTE D.'||v_prop.nombreape||' '||'TLF:'||v_prop.tlfcontacto);
@@ -218,10 +266,111 @@ begin
 				dbms_output.put_line('SECRETARIO D.'||v_prop.nombreape||' '||'TLF:'||v_prop.tlfcontacto);
 			when 'Vocal' then
 				dbms_output.put_line('VOCALES D.'||v_prop.nombreape||' '||'TLF:'||v_prop.tlfcontacto);
-		end case;	
+		end case;
 	end loop;
+	dbms_output.put_line('Numero de directivos:'||v_cont);
 end MostrarTipo1;
 /
+
+create or replace procedure Imprimirrecibos(p_dnipropietario propietarios.dni%type)
+is
+	cursor c_recibos is
+	select fecha,importe
+	from reciboscuotas
+	where dni=p_dnipropietario
+	and pagado='No'
+	and fecha <= sysdate;
+
+	v_acum NUMBER:=0;
+	v_acumtotal NUMBER:=0;
+begin
+	for v_recibo in c_recibos loop
+		dbms_output.put_line('Fecha Recibo: '||v_recibo.fecha||' '||'Importe: '||v_recibo.importe);
+		v_acum:=v_acum+v_recibo.importe;
+	end loop;
+	dbms_output.put_line('Total adeudado: '||v_acum);
+end Imprimirrecibos;
+/
+
+create or replace procedure Imprimirdeudacomunidad(p_codcomunidad comunidades.codcomunidad%type)
+is
+	v_acumtotal NUMBER:=0;
+begin
+	select sum(importe) into v_acumtotal
+	from reciboscuotas
+	where pagado='No'
+	and codcomunidad=p_codcomunidad
+	group by p_codcomunidad;
+	dbms_output.put_line('Total adeudado en la comunidad: '||v_acumtotal);
+end Imprimirdeudacomunidad;
+/
+
+create or replace procedure MostrarTipo2(p_codcomunidad comunidades.codcomunidad%type)
+is
+	cursor c_morosos is	
+	select nombre||' '||apellidos as nombreape,dni
+	from propietarios
+	where dni in (select dni
+		      from reciboscuotas
+                      where codcomunidad=p_codcomunidad
+		      and pagado='No');
+begin
+	dbms_output.put_line('INFORME DE RECIBOS IMPAGADOS');	
+	Infocomunidad(p_codcomunidad,sysdate);	
+	for v_moroso in c_morosos loop
+		dbms_output.put_line('Propietario: D.'||v_moroso.nombreape);
+		Imprimirrecibos(v_moroso.dni);
+	end loop;
+	Imprimirdeudacomunidad(p_codcomunidad);
+end MostrarTipo2;
+/
+
+create or replace procedure Infocomunidad2(p_codcomunidad comunidades.codcomunidad%type)
+is
+	nombrecom comunidades.nombre%type;
+	codigopos comunidades.codigopostal%type;
+begin
+	select nombre,codigopostal into nombrecom,codigopos
+	from comunidades
+	where codcomunidad=p_codcomunidad;
+	dbms_output.put_line('Comunidad:'||nombrecom||chr(10)||'Poblacion:'||codigopos);
+end Infocomunidad2;
+/
+
+
+create or replace procedure InfoPropiedades(p_dnipropietario propietarios.dni%type)
+is
+	cursor c_propiedades is
+	select codpropiedad,portal,planta,porcentajeparticipacion
+	from propiedades
+	where dnipropietario=p_dnipropietario;
+
+	v_acum NUMBER:=0;
+	v_tipo VARCHAR2(8);
+begin
+	for v_propiedad in c_propiedades loop
+		dbms_output.put_line('Codpropiedad: '||v_propiedad.codpropiedad);
+	end loop;
+
+
+create or replace procedure MostrarTipo3(p_codcomunidad comunidades.codcomunidad%type)
+is
+	cursor c_propietarios is
+	select dni,nombre||' '||apellidos as nomape
+	from propietarios
+	where dni in (select dnipropietario
+		      from propiedades
+		      where codcomunidad=p_codcomunidad);
+begin
+	dbms_output.put_line('INFORME DE PROPIEDADES');	
+	Infocomunidad2(p_codcomunidad);	
+	for v_prop in c_propietarios loop
+		dbms_output.put_line('Propietario: D.'||v_prop.nomape);
+		InfoPropiedades(v_prop.dni);
+	end loop;
+end MostrarTipo3;
+/
+		
 
 
 create or replace procedure MostrarInformes(p_tipo NUMBER,p_codcomunidad comunidades.codcomunidad%type,p_fecha DATE)
