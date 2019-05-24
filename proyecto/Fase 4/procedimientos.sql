@@ -337,20 +337,135 @@ begin
 end Infocomunidad2;
 /
 
+create or replace function local(p_codpropiedad propiedades.codpropiedad%type)
+return NUMBER
+is
+	v_num NUMBER:=0;
+begin
+	select count(*) into v_num
+	from locales
+	where codpropiedad=p_codpropiedad;
+	if v_num=1 then
+		return 1;
+	else 
+		return 0;
+	end if;
+end local;
+/
 
-create or replace procedure InfoPropiedades(p_dnipropietario propietarios.dni%type)
+create or replace function vivienda(p_codpropiedad propiedades.codpropiedad%type)
+return NUMBER
+is
+	v_num NUMBER:=0;
+begin
+	select count(*) into v_num
+	from viviendas
+	where codpropiedad=p_codpropiedad;
+	if v_num=1 then
+		return 1;
+	else 
+		return 0;
+	end if;
+end vivienda;
+/
+
+create or replace function oficina(p_codpropiedad propiedades.codpropiedad%type)
+return NUMBER
+is
+	v_num NUMBER:=0;
+begin
+	select count(*) into v_num
+	from oficinas
+	where codpropiedad=p_codpropiedad;
+	if v_num=1 then
+		return 1;
+	else 
+		return 0;
+	end if;
+end oficina;
+/
+
+create or replace function dequetipoes(p_codpropiedad propiedades.codpropiedad%type)
+return VARCHAR2
+is
+	v_local NUMBER:=0;
+	v_vivienda NUMBER:=0;
+	v_oficina NUMBER:=0;
+	v_tipo VARCHAR2(8);
+begin
+	v_local:=local(p_codpropiedad);
+	v_vivienda:=vivienda(p_codpropiedad);
+	v_oficina:=oficina(p_codpropiedad);
+	case
+		when v_local=1 then
+			v_tipo:='Local';
+			return v_tipo;
+		when v_vivienda=1 then
+			v_tipo:='Vivienda';
+			return v_tipo;
+		when v_oficina=1 then
+			v_tipo:='Oficina';
+			return v_tipo;
+	end case;
+end dequetipoes;
+/
+
+create or replace function Tieneinquilino(p_codpropiedad propiedades.codpropiedad%type)
+return NUMBER
+is
+	v_num NUMBER:=0;
+begin
+	select count(*) into v_num
+	from inquilinos
+	where codpropiedad=p_codpropiedad;
+	if v_num=1 then
+		return 1;
+	else
+		return 0;
+	end if;
+end Tieneinquilino;
+/
+
+create or replace function Nombreinquilino(p_codpropiedad propiedades.codpropiedad%type)
+return VARCHAR2
+is
+	v_nombre VARCHAR2(40);
+begin
+	select nombre||' '||apellidos into v_nombre
+	from inquilinos
+	where codpropiedad=p_codpropiedad;
+	return v_nombre;
+end Nombreinquilino;
+/
+
+create or replace procedure InfoPropiedades(p_dnipropietario propietarios.dni%type,p_codcomunidad comunidades.codcomunidad%type)
 is
 	cursor c_propiedades is
-	select codpropiedad,portal,planta,porcentajeparticipacion
+	select codpropiedad,portal,planta,letra,porcentajeparticipacion
 	from propiedades
-	where dnipropietario=p_dnipropietario;
+	where dnipropietario=p_dnipropietario
+	and codcomunidad=p_codcomunidad;
 
 	v_acum NUMBER:=0;
 	v_tipo VARCHAR2(8);
+	v_inquilino NUMBER:=0;
+	v_nominquilino VARCHAR2(40);
 begin
 	for v_propiedad in c_propiedades loop
 		dbms_output.put_line('Codpropiedad: '||v_propiedad.codpropiedad);
+		v_tipo:=dequetipoes(v_propiedad.codpropiedad);
+		v_inquilino:=Tieneinquilino(v_propiedad.codpropiedad);
+		if v_inquilino=1 then 
+			v_nominquilino:=Nombreinquilino(v_propiedad.codpropiedad);
+		else
+			v_nominquilino:='No';
+		end if;
+		dbms_output.put_line('Tipo: '||v_tipo||'   Portal: '||v_propiedad.portal||'   Planta: '||v_propiedad.planta||'   Letra: '||v_propiedad.letra||'   Participacion: '||v_propiedad.porcentajeparticipacion||' %   Inquilino: '||v_nominquilino);
+		v_acum:=v_acum+v_propiedad.porcentajeparticipacion;
+		dbms_output.put_line('Porcentaje de participacion total del propietario: '||v_acum||' %');
 	end loop;
+end InfoPropiedades;
+/
 
 
 create or replace procedure MostrarTipo3(p_codcomunidad comunidades.codcomunidad%type)
@@ -366,7 +481,7 @@ begin
 	Infocomunidad2(p_codcomunidad);	
 	for v_prop in c_propietarios loop
 		dbms_output.put_line('Propietario: D.'||v_prop.nomape);
-		InfoPropiedades(v_prop.dni);
+		InfoPropiedades(v_prop.dni,p_codcomunidad);
 	end loop;
 end MostrarTipo3;
 /
@@ -400,6 +515,9 @@ Num Propiedades Honorarios Anuales
 11-20 1800
 >20 2500
 La existencia de locales incrementará en un 20% los honorarios y la de oficinas en otro 10%
+
+
+
 4. Realiza los módulos de programación necesarios para que cuando se abone un recibo que lleve más de un año
 impagado se avise por correo electrónico al presidente de la comunidad y al administrador que tiene un contrato de
 mandato vigente con la comunidad correspondiente. Añade el campo e-mail tanto a la tabla Propietarios como
@@ -407,6 +525,9 @@ Administradores.
 5. Añade una columna ImportePendiente en la columna Propietarios y rellénalo con la suma de los importes de los
 recibos pendientes de pago de cada propietario. Realiza los módulos de programación necesarios para que los
 datos de la columna sean siempre coherentes con los datos que se encuentran en la tabla Recibos.
+
+
+
 6. Realiza los módulos de programación necesarios para evitar que un propietario pueda ocupar dos cargos
 diferentes en la misma comunidad de forma simultánea.
 7. Realiza los módulos de programación necesarios para evitar que un administrador gestione más de cuatro
