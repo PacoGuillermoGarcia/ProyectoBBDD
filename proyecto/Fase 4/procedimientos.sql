@@ -659,51 +659,89 @@ Administradores.
 5. Añade una columna ImportePendiente en la columna Propietarios y rellénalo con la suma de los importes de los
 recibos pendientes de pago de cada propietario. Realiza los módulos de programación necesarios para que los
 datos de la columna sean siempre coherentes con los datos que se encuentran en la tabla Recibos.
+6. Realiza los módulos de programación necesarios para evitar que un propietario pueda ocupar dos cargos
+diferentes en la misma comunidad de forma simultánea.
 
-ALTER TABLE propietarios
-add ImportePendiente NUMBER(6,2);
-
-update Propietarios p
-set ImportePendiente = (select nvl(sum(importe),0)
-						from reciboscuotas r
-						where r.dni=p.dni
-						and pagado='No');
-
-create or replace package loquedebe
+create or replace package Pkgcargos
 as
-	TYPE tRegistro is RECORD
-	(
-		DNI    propietarios.dni%type
-		DEUDA  propietarios.ImportePendiente%type
+	TYPE tCargos IS RECORD
+	(	
+		DNI         propietarios.dni%type,
+		CARGO       historialcargos.nombrecargo%type,
+ 		FECHAINICIO historialcargos.fechainicio%type,
+		FECHAFIN    historialcargos.fechafin%type
 	);
 
-	TYPE tTabla IS TABLE OF tRegistro INDEX BY BINARY_INTEGER;
+	TYPE tTablacargos IS TABLE OF tCargos
+	INDEX BY BINARY_INTEGER;
 
-	v_Tabla tTabla;
+	vTabCarg tTablacargos;
 end;
 /
 
-create or replace trigger PorSentencia
-before insert or update on propietarios
+create or replace trigger RellenarCargos
+before insert on historialcargos
 declare
-	cursor c_propietario is
-	select dni,ImportePendiente
-	from propietarios;
+	cursor c_cargos is
+	select dni,nombrecargo,fechainicio,fechafin
+	from historialcargos;
+
+	i NUMBER:=0;
 begin
-	for v_propietario in c_propietario loop
-		loquedebe.v_Tabla(i).DNI:=v_propietario.dni;
-		loquedebe.v_Tabla(i).DEUDA:=v_propietario.ImportePendiente;
+	for v_cargo in c_cargos loop
+		Pkgcargos.vTabCarg(i).DNI:=v_cargo.dni;
+		Pkgcargos.vTabCarg(i).CARGO:=v_cargo.nombrecargo;
+		Pkgcargos.vTabCarg(i).FECHAINICIO:=v_cargo.fechainicio;
+		Pkgcargos.vTabCarg(i).FECHAFIN:=v_cargo.fechafin;
 		i:=i+1;
 	end loop;
 end;
 /
 
+create or replace function Tienecargo(p_dni propietarios.dni%type, p_fecha historialcargos.fechainicio%type)
+return NUMBER
+is
+begin
+	for i in Pkgcargos.vTabCarg.FIRST..Pkgcargos.vTabCarg.LAST loop
+		if p_dni=Pkgcargos.vTabCarg(i).DNI and (p_fecha between Pkgcargos.vTabCarg(i).FECHAINICIO and Pkgcargos.vTabCarg(i).FECHAFIN) then
+			return 1;
+		else
+			return 0;
+		end if;
+	end loop;
+end;
+/
 
+create or replace procedure crearfilanueva(p_dni propietarios.dni%type,
+                                           p_cargo historialcargos.nombrecargo%type,
+                                           p_fechainicio historialcargos.fechainicio%type,
+                                           p_fechafin historialcargos.fechafin%type)
+is
+begin
+	Pkgcargos.vTabCarg(Pkgcargos.vTabCarg.LAST+1).DNI:=p_dni;
+	Pkgcargos.vTabCarg(Pkgcargos.vTabCarg.LAST+1).CARGO:=p_cargo;
+	Pkgcargos.vTabCarg(Pkgcargos.vTabCarg.LAST+1).FECHAINICIO:=p_fechainicio;
+	Pkgcargos.vTabCarg(Pkgcargos.vTabCarg.LAST+1).FECHAFIN:=p_fechafin;
+end;
+/
 
+create or replace trigger ComprobarCargos
+before insert on historialcargos
+for each row
+declare
+	v_tienecargo NUMBER:=0;
+begin
+	v_tienecargo:=Tienecargo(:new.dni,:new.fechainicio);
+	if v_tienecargo=1 then
+		raise_application_error(-20001,'Ese hombre ya tiene un cargo no puede tener otro');
+	else
+		crearfilanueva(:new.dni,:new.nombrecargo,:new.fechainicio,:new.fechafin);
+	end if;
+end;
+/
 
-6. Realiza los módulos de programación necesarios para evitar que un propietario pueda ocupar dos cargos
-diferentes en la misma comunidad de forma simultánea.
 7. Realiza los módulos de programación necesarios para evitar que un administrador gestione más de cuatro
 comunidades de forma simultánea.
 8. Realiza los módulos de programación necesarios para evitar que se emitan dos recibos a un mismo propietario en
 menos de 30 días.
+

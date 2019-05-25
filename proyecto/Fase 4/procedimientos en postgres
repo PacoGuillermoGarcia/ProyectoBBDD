@@ -1,0 +1,234 @@
+1. Realiza una función que reciba un código de comunidad y un código de propiedad y, en caso de que se trate de un
+local nos devuelva un 1 si está abierto o un 0 si está cerrado en el momento de la ejecución de la función. Debes
+contemplar las siguientes excepciones: Comunidad Inexistente, Propiedad Inexistente en esa Comunidad, La
+propiedad no es un local comercial.
+
+create or replace function comunidadexiste(p_codcomunidad comunidades.codcomunidad%type) RETURNS text AS $func$
+DECLARE
+	v_codcomunidad VARCHAR(40);
+begin
+	select codcomunidad into v_codcomunidad
+	from comunidades
+	where codcomunidad=p_codcomunidad;
+	if (v_codcomunidad is null) then
+		raise exception 'No existe la comunidad';
+	else
+		return('existe');
+	end if;
+end;
+$func$ LANGUAGE plpgsql;
+	
+create or replace function propiedadexisteencomunidad(p_codcomunidad comunidades.codcomunidad%type,p_codpropiedad propiedades.codpropiedad%type) RETURNS text as $func$
+DECLARE
+	v_propiedad propiedades.codpropiedad%type;
+begin
+	select codpropiedad into v_propiedad
+	from propiedades
+	where codpropiedad=p_codpropiedad
+	and codcomunidad=p_codcomunidad;
+	if (v_propiedad is null) then
+		raise exception 'No existe esa propiedad en la comunidad';
+	else
+		return('Existe');
+	end if;
+end;
+$func$ LANGUAGE plpgsql;
+
+create or replace function eslocal(p_codpropiedad propiedades.codpropiedad%type,p_codcomunidad comunidades.codcomunidad%type) RETURNS text as $func$
+DECLARE
+	v_local propiedades.codpropiedad%type;
+begin
+	select codpropiedad into v_local
+	from locales
+	where codpropiedad=p_codpropiedad
+	and codcomunidad=p_codcomunidad;
+	if (v_local is null) then
+		raise exception 'Esa propiedad no es un local';
+	else
+		return('Es local');
+	end if;
+end;
+$func$ LANGUAGE plpgsql;
+
+create or replace function comprobarexcepcionesEJ1(p_codcomunidad comunidades.codcomunidad%type,p_codpropiedad propiedades.codpropiedad%type) RETURNS text as $$
+DECLARE
+begin
+	perform comunidadexiste(p_codcomunidad);
+	perform propiedadexisteencomunidad(p_codcomunidad,p_codpropiedad);
+	perform eslocal(p_codpropiedad,p_codcomunidad);
+	return('Cumple requisitos');
+end;
+$$ LANGUAGE PLPGSQL;
+
+create or replace function comprobarabierto(p_codcomunidad comunidades.codcomunidad%type,p_codpropiedad propiedades.codpropiedad%type)
+returns NUMERIC
+AS $$
+DECLARE
+	v_num NUMERIC;
+begin
+	perform comprobarexcepcionesEJ1(p_codcomunidad,p_codpropiedad);	
+	select count(*) into v_num
+	from horariosapertura
+	where codcomunidad=p_codcomunidad
+	and codpropiedad=p_codpropiedad
+	and to_char(now(),'HH24MI') > to_char(horaapertura,'HH24MI') 
+	and to_char(now(),'HH24MI') < to_char(horacierre,'HH24MI')
+	and lower(ltrim(rtrim(to_char(now(),'Day'))))=lower(diasemana);
+	if v_num=1 then
+		return(1);
+	else
+		return(0);
+	end if;
+end;
+$$ LANGUAGE PLPGSQL;
+
+
+
+3.Realiza los módulos de programación necesarios para que los honorarios anuales correspondientes a un contrato
+de mandato vayan en función del número de propiedades de la comunidad y de la existencia o no de locales y
+oficinas, de acuerdo con la siguiente tabla:
+Num Propiedades Honorarios Anuales
+1-5 600
+6-10 1000
+11-20 1800
+>20 2500
+La existencia de locales incrementará en un 20% los honorarios y la de oficinas en otro 10%
+
+create or replace function Tienelocales(p_codcomunidad comunidades.codcomunidad%type) returns NUMERIC as $$
+DECLARE
+	v_num NUMERIC;
+begin
+	select count(*) into v_num
+	from locales
+	where codcomunidad=p_codcomunidad;
+	if (v_num>0) then
+		return(1);
+	else 
+		return(0);
+	end if;
+end;
+$$ LANGUAGE PLPGSQL;
+
+create or replace function Tieneoficina(p_codcomunidad comunidades.codcomunidad%type) returns NUMERIC as $$
+DECLARE
+	v_num NUMERIC;
+begin
+	select count(*) into v_num
+	from oficinas
+	where codcomunidad=p_codcomunidad;
+	if (v_num>0) then
+		return(1);
+	else 
+		return(0);
+	end if;
+end;
+$$ LANGUAGE PLPGSQL;
+
+create or replace function controlarcomunidades1(p_codcomunidad comunidades.codcomunidad%type,p_honorarios contratosdemandato.honorariosanuales%type) returns text as $$
+DECLARE
+	v_local NUMERIC;
+	v_oficina NUMERIC;
+begin
+	v_local:=Tienelocales(p_codcomunidad);
+	v_oficina:=Tieneoficina(p_codcomunidad);
+	case
+		when v_local=0 and v_oficina=0 and p_honorarios!=600 then
+			raise exception 'Los honorarios de esa comunidad son 600';
+		when v_local=1 and v_oficina=0 and p_honorarios!=600+(600*0.2) then
+			raise exception 'Esos no son los honorarios para ese tipo de comunidad';
+		when v_local=1 and v_oficina=1 and p_honorarios!=(600+(600*0.2)+(600*0.1)) then
+			raise exception 'Esos no son los honorarios para ese tipo de comunidad';
+		when v_local=0 and v_oficina=1 and p_honorarios!=600+(600*0.1) then
+			raise exception 'Esos no son los honorarios para ese tipo de comunidad';
+		else
+			return('honorarios correctos');
+	end case;
+end;
+$$ LANGUAGE PLPGSQL;
+
+create or replace function controlarcomunidades2(p_codcomunidad comunidades.codcomunidad%type,p_honorarios contratosdemandato.honorariosanuales%type) returns text as $$
+DECLARE
+	v_local NUMERIC;
+	v_oficina NUMERIC;
+begin
+	v_local:=Tienelocales(p_codcomunidad);
+	v_oficina:=Tieneoficina(p_codcomunidad);
+	case
+		when v_local=0 and v_oficina=0 and p_honorarios!=100 then
+			raise exception 'Los honorarios de esa comunidad son 1000';
+		when v_local=1 and v_oficina=0 and p_honorarios!=1000+(1000*0.2) then
+			raise exception 'Esos no son los honorarios para ese tipo de comunidad';
+		when v_local=1 and v_oficina=1 and p_honorarios!=(600+(600*0.2)+(600*0.1)) then
+			raise exception 'Esos no son los honorarios para ese tipo de comunidad';
+		when v_local=0 and v_oficina=1 and p_honorarios!=600+(600*0.1) then
+			raise exception 'Esos no son los honorarios para ese tipo de comunidad';
+		else
+			return('honorarios correctos');
+	end case;
+end;
+$$ LANGUAGE PLPGSQL;
+
+create or replace function controlarcomunidades3(p_codcomunidad comunidades.codcomunidad%type,p_honorarios contratosdemandato.honorariosanuales%type) returns text as $$
+DECLARE
+	v_local NUMERIC;
+	v_oficina NUMERIC;
+begin
+	v_local:=Tienelocales(p_codcomunidad);
+	v_oficina:=Tieneoficina(p_codcomunidad);
+	case
+		when v_local=0 and v_oficina=0 and p_honorarios!=1800 then
+			raise exception 'Los honorarios de esa comunidad son 1800';
+		when v_local=1 and v_oficina=0 and p_honorarios!=1800+(1800*0.2) then
+			raise exception 'Esos no son los honorarios para ese tipo de comunidad';
+		when v_local=1 and v_oficina=1 and p_honorarios!=(1800+(1800*0.2)+(600*0.1)) then
+			raise exception 'Esos no son los honorarios para ese tipo de comunidad';
+		when v_local=0 and v_oficina=1 and p_honorarios!=1800+(1800*0.1) then
+			raise exception 'Esos no son los honorarios para ese tipo de comunidad';
+	end case;
+end;
+$$ LANGUAGE PLPGSQL;
+
+
+create or replace function controlarcomunidades4(p_codcomunidad comunidades.codcomunidad%type,p_honorarios contratosdemandato.honorariosanuales%type) returns text as $$
+DECLARE
+	v_local NUMERIC;
+	v_oficina NUMERIC;
+begin
+	v_local:=Tienelocales(p_codcomunidad);
+	v_oficina:=Tieneoficina(p_codcomunidad);
+	case
+		when v_local=0 and v_oficina=0 and p_honorarios!=2500 then
+			raise exception 'Los honorarios de esa comunidad son 2500';
+		when v_local=1 and v_oficina=0 and p_honorarios!=2500+(2500*0.2) then
+			raise exception 'Esos no son los honorarios para ese tipo de comunidad';
+		when v_local=1 and v_oficina=1 and p_honorarios!=(2500+(2500*0.2)+(2500*0.1)) then
+			raise exception 'Esos no son los honorarios para ese tipo de comunidad';
+		when v_local=0 and v_oficina=1 and p_honorarios!=2500+(2500*0.1) then
+			raise exception 'Esos no son los honorarios para ese tipo de comunidad';
+	end case;
+end;
+$$ LANGUAGE PLPGSQL;
+
+create or replace function honorarios() returns trigger as $$
+declare
+	v_contador NUMERIC;
+begin
+	select count(*) into v_contador
+	from propiedades
+	where codcomunidad=new.codcomunidad
+	group by new.codcomunidad;
+	case 
+		when v_contador between 1 and 5 then
+			perform controlarcomunidades1(new.codcomunidad,new.honorariosanuales);
+		when v_contador between 6 and 10 then
+			perform controlarcomunidades2(new.codcomunidad,new.honorariosanuales);
+		when v_contador between 11 and 20 then
+			perform controlarcomunidades3(new.codcomunidad,new.honorariosanuales);
+		when v_contador > 20 then
+			perform controlarcomunidades4(new.codcomunidad,new.honorariosanuales);
+	end case;
+end;
+$$ LANGUAGE PLPGSQL;
+
+create trigger honorariosanuales before insert or update on contratosdemandato
+	for each row execute procedure honorarios();
