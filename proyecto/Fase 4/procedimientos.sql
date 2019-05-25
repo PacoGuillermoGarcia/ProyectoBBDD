@@ -517,6 +517,140 @@ Num Propiedades Honorarios Anuales
 La existencia de locales incrementará en un 20% los honorarios y la de oficinas en otro 10%
 
 
+create or replace function Tienelocales(p_codcomunidad comunidades.codcomunidad%type)
+return NUMBER
+is
+	v_num NUMBER:=0;
+begin
+	select count(*) into v_num
+	from locales
+	where codcomunidad=p_codcomunidad;
+	if v_num>0 then
+		return 1;
+	else 
+		return 0;
+	end if;
+end Tienelocales;
+/
+
+create or replace function Tieneoficina(p_codcomunidad comunidades.codcomunidad%type)
+return NUMBER
+is
+	v_num NUMBER:=0;
+begin
+	select count(*) into v_num
+	from oficinas
+	where codcomunidad=p_codcomunidad;
+	if v_num>0 then
+		return 1;
+	else 
+		return 0;
+	end if;
+end Tieneoficina;
+/
+
+create or replace procedure controlarcomunidades1(p_codcomunidad comunidades.codcomunidad%type,p_honorarios contratosdemandato.honorariosanuales%type)
+is
+	v_local NUMBER:=0;
+	v_oficina NUMBER:=0;
+begin
+	v_local:=Tienelocales(p_codcomunidad);
+	v_oficina:=Tieneoficina(p_codcomunidad);
+	case
+		when v_local=0 and v_oficina=0 and p_honorarios!=600 then
+			raise_application_error(-20001,'Los honorarios de esa comunidad son 600');
+		when v_local=1 and v_oficina=0 and p_honorarios!=600+(600*0.2) then
+			raise_application_error(-20002,'Los honorarios de esa comunidad son '||(600+(600*0.2)));
+		when v_local=1 and v_oficina=1 and p_honorarios!=(600+(600*0.2)+(600*0.1)) then
+			raise_application_error(-20003,'Los honorarios de esa comunidad son '||(600+(600*0.2)+(600*0.1)));
+		when v_local=0 and v_oficina=1 and p_honorarios!=600+(600*0.1) then
+			raise_application_error(-20004,'Los honorarios de esa comunidad son '||(600+(600*0.1)));
+	end case;
+end controlarcomunidades1;
+/
+
+create or replace procedure controlarcomunidades2(p_codcomunidad comunidades.codcomunidad%type,p_honorarios contratosdemandato.honorariosanuales%type)
+is
+	v_local NUMBER:=0;
+	v_oficina NUMBER:=0;
+begin
+	v_local:=Tienelocales(p_codcomunidad);
+	v_oficina:=Tieneoficina(p_codcomunidad);
+	case
+		when v_local=0 and v_oficina=0 and p_honorarios!=100 then
+			raise_application_error(-20001,'Los honorarios de esa comunidad son 1000');
+		when v_local=1 and v_oficina=0 and p_honorarios!=1000+(1000*0.2) then
+			raise_application_error(-20002,'Los honorarios de esa comunidad son '||(1000+(1000*0.2)));
+		when v_local=1 and v_oficina=1 and p_honorarios!=(600+(600*0.2)+(600*0.1)) then
+			raise_application_error(-20003,'Los honorarios de esa comunidad son '||(1000+(1000*0.2)+(1000*0.1)));
+		when v_local=0 and v_oficina=1 and p_honorarios!=600+(600*0.1) then
+			raise_application_error(-20004,'Los honorarios de esa comunidad son '||(1000+(1000*0.1)));
+	end case;
+end controlarcomunidades2;
+/
+
+create or replace procedure controlarcomunidades3(p_codcomunidad comunidades.codcomunidad%type,p_honorarios contratosdemandato.honorariosanuales%type)
+is
+	v_local NUMBER:=0;
+	v_oficina NUMBER:=0;
+begin
+	v_local:=Tienelocales(p_codcomunidad);
+	v_oficina:=Tieneoficina(p_codcomunidad);
+	case
+		when v_local=0 and v_oficina=0 and p_honorarios!=1800 then
+			raise_application_error(-20001,'Los honorarios de esa comunidad son 1800');
+		when v_local=1 and v_oficina=0 and p_honorarios!=1800+(1800*0.2) then
+			raise_application_error(-20002,'Los honorarios de esa comunidad son '||(1800+(1800*0.2)));
+		when v_local=1 and v_oficina=1 and p_honorarios!=(1800+(1800*0.2)+(600*0.1)) then
+			raise_application_error(-20003,'Los honorarios de esa comunidad son '||(1800+(1800*0.2)+(1800*0.1)));
+		when v_local=0 and v_oficina=1 and p_honorarios!=1800+(1800*0.1) then
+			raise_application_error(-20004,'Los honorarios de esa comunidad son '||(1800+(1800*0.1)));
+	end case;
+end controlarcomunidades3;
+/
+
+create or replace procedure controlarcomunidades4(p_codcomunidad comunidades.codcomunidad%type,p_honorarios contratosdemandato.honorariosanuales%type)
+is
+	v_local NUMBER:=0;
+	v_oficina NUMBER:=0;
+begin
+	v_local:=Tienelocales(p_codcomunidad);
+	v_oficina:=Tieneoficina(p_codcomunidad);
+	case
+		when v_local=0 and v_oficina=0 and p_honorarios!=2500 then
+			raise_application_error(-20001,'Los honorarios de esa comunidad son 2500');
+		when v_local=1 and v_oficina=0 and p_honorarios!=2500+(2500*0.2) then
+			raise_application_error(-20002,'Los honorarios de esa comunidad son '||(2500+(2500*0.2)));
+		when v_local=1 and v_oficina=1 and p_honorarios!=(2500+(2500*0.2)+(2500*0.1)) then
+			raise_application_error(-20003,'Los honorarios de esa comunidad son '||(2500+(2500*0.2)+(2500*0.1)));
+		when v_local=0 and v_oficina=1 and p_honorarios!=2500+(2500*0.1) then
+			raise_application_error(-20004,'Los honorarios de esa comunidad son '||(2500+(2500*0.1)));
+	end case;
+end controlarcomunidades4;
+/
+
+create or replace trigger honorarios
+before insert or update on contratosdemandato
+for each row
+declare
+	v_contador NUMBER:=0;
+begin
+	select count(*) into v_contador
+	from propiedades
+	where codcomunidad=:new.codcomunidad
+	group by :new.codcomunidad;
+	case 
+		when v_contador between 1 and 5 then
+			controlarcomunidades1(:new.codcomunidad,:new.honorariosanuales);
+		when v_contador between 6 and 10 then
+			controlarcomunidades2(:new.codcomunidad,:new.honorariosanuales);
+		when v_contador between 11 and 20 then
+			controlarcomunidades3(:new.codcomunidad,:new.honorariosanuales);
+		when v_contador > 20 then
+			controlarcomunidades4(:new.codcomunidad,:new.honorariosanuales);
+	end case;
+end honorarios;
+/
 
 4. Realiza los módulos de programación necesarios para que cuando se abone un recibo que lleve más de un año
 impagado se avise por correo electrónico al presidente de la comunidad y al administrador que tiene un contrato de
@@ -525,6 +659,45 @@ Administradores.
 5. Añade una columna ImportePendiente en la columna Propietarios y rellénalo con la suma de los importes de los
 recibos pendientes de pago de cada propietario. Realiza los módulos de programación necesarios para que los
 datos de la columna sean siempre coherentes con los datos que se encuentran en la tabla Recibos.
+
+ALTER TABLE propietarios
+add ImportePendiente NUMBER(6,2);
+
+update Propietarios p
+set ImportePendiente = (select nvl(sum(importe),0)
+						from reciboscuotas r
+						where r.dni=p.dni
+						and pagado='No');
+
+create or replace package loquedebe
+as
+	TYPE tRegistro is RECORD
+	(
+		DNI    propietarios.dni%type
+		DEUDA  propietarios.ImportePendiente%type
+	);
+
+	TYPE tTabla IS TABLE OF tRegistro INDEX BY BINARY_INTEGER;
+
+	v_Tabla tTabla;
+end;
+/
+
+create or replace trigger PorSentencia
+before insert or update on propietarios
+declare
+	cursor c_propietario is
+	select dni,ImportePendiente
+	from propietarios;
+begin
+	for v_propietario in c_propietario loop
+		loquedebe.v_Tabla(i).DNI:=v_propietario.dni;
+		loquedebe.v_Tabla(i).DEUDA:=v_propietario.ImportePendiente;
+		i:=i+1;
+	end loop;
+end;
+/
+
 
 
 
